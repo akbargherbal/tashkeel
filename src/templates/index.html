@@ -415,6 +415,116 @@
       }
 
       /* ------------------------------------------------------------------
+       Completion banner (non-blocking — spec §12 step 6)
+       completion.js shows/hides this after Mark Complete.
+       ------------------------------------------------------------------ */
+      #completion-banner {
+        position: fixed;
+        top: 0;
+        left: var(--sidebar-width);
+        right: 0;
+        background: rgba(21, 128, 61, 0.92);
+        color: #dcfce7;
+        font-size: 12px;
+        padding: 6px 16px;
+        display: none;
+        align-items: center;
+        gap: 12px;
+        z-index: 42; /* above conflict banner */
+      }
+      #completion-banner.visible {
+        display: flex;
+      }
+      #completion-banner-dismiss {
+        margin-left: auto;
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+        background: none;
+        border: none;
+        color: inherit;
+      }
+
+      /* ------------------------------------------------------------------
+       Keyboard shortcuts overlay (Plan §Task 5.5 — '?' key)
+       completion.js toggles this.
+       ------------------------------------------------------------------ */
+      #shortcuts-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.78);
+        z-index: 900;
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      #shortcuts-overlay.visible {
+        display: flex;
+      }
+      #shortcuts-box {
+        background: #1e1e1e;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 24px 32px;
+        max-width: 520px;
+        width: 90%;
+        max-height: 80vh;
+        overflow-y: auto;
+        position: relative;
+      }
+      #shortcuts-box h2 {
+        color: #ccc;
+        font-size: 14px;
+        font-weight: 700;
+        margin: 0 0 16px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      #shortcuts-box .shortcut-section {
+        color: #555;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin: 14px 0 6px;
+      }
+      #shortcuts-box table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      #shortcuts-box td {
+        padding: 4px 0;
+        color: #999;
+        vertical-align: top;
+      }
+      #shortcuts-box td:first-child {
+        font-family: ui-monospace, monospace;
+        color: #e8e0d5;
+        width: 42%;
+        padding-right: 16px;
+      }
+      #shortcuts-close {
+        position: absolute;
+        top: 14px;
+        right: 16px;
+        background: none;
+        border: none;
+        color: #555;
+        font-size: 18px;
+        cursor: pointer;
+        line-height: 1;
+      }
+      #shortcuts-close:hover {
+        color: #ccc;
+      }
+      #shortcuts-hint {
+        margin-top: 14px;
+        font-size: 11px;
+        color: #444;
+        text-align: right;
+      }
+
+      /* ------------------------------------------------------------------
        Blocking error banner (api.js manages visibility — spec §Plan Task 1.4)
        ------------------------------------------------------------------ */
       #error-banner {
@@ -583,6 +693,12 @@
         <button id="conflict-banner-dismiss" aria-label="Dismiss">✕</button>
       </div>
 
+      <!-- Completion banner (spec §12 step 6) — completion.js manages visibility -->
+      <div id="completion-banner" role="status">
+        <span id="completion-banner-msg"></span>
+        <button id="completion-banner-dismiss" aria-label="Dismiss">✕</button>
+      </div>
+
       <!-- Document pane — overflow:hidden; Phase 2 wires Zen Focus here -->
       <div id="doc-pane-wrapper">
         <div id="doc-pane-scroll">
@@ -636,6 +752,60 @@
       </div>
     </div>
 
+    <!-- ===== KEYBOARD SHORTCUTS OVERLAY ===== -->
+    <!--
+    Toggled by '?' key (completion.js).
+    Escape also closes it.
+    Content mirrors spec §14 / Plan §Task 5.5.
+  -->
+    <div id="shortcuts-overlay" role="dialog" aria-modal="true" aria-label="Keyboard Shortcuts">
+      <div id="shortcuts-box">
+        <button id="shortcuts-close" aria-label="Close" onclick="window.toggleShortcutsOverlay()">✕</button>
+        <h2>Keyboard Shortcuts</h2>
+
+        <div class="shortcut-section">Word Mode</div>
+        <table>
+          <tbody>
+            <tr><td>← Left Arrow</td><td>Next word (RTL direction)</td></tr>
+            <tr><td>→ Right Arrow</td><td>Previous word</td></tr>
+            <tr><td>↓ Down Arrow</td><td>Same word position, next line</td></tr>
+            <tr><td>↑ Up Arrow</td><td>Same word position, previous line</td></tr>
+            <tr><td>Enter</td><td>Enter Character Mode for current word</td></tr>
+            <tr><td>Tab</td><td>Jump to next undiacritized word (wraps)</td></tr>
+          </tbody>
+        </table>
+
+        <div class="shortcut-section">Character Mode</div>
+        <table>
+          <tbody>
+            <tr><td>← Left Arrow</td><td>Next character (RTL); auto-exits at word boundary</td></tr>
+            <tr><td>→ Right Arrow</td><td>Previous character; auto-exits at word boundary</td></tr>
+            <tr><td>Escape</td><td>Exit to Word Mode</td></tr>
+            <tr><td>Diacritic key</td><td>Apply / replace diacritic on current character</td></tr>
+            <tr><td>Same diacritic key again</td><td>Toggle off (remove) diacritic</td></tr>
+            <tr><td>Delete / Backspace</td><td>Clear all diacritics from current character</td></tr>
+          </tbody>
+        </table>
+
+        <div class="shortcut-section">General</div>
+        <table>
+          <tbody>
+            <tr><td>?</td><td>Show / hide this reference</td></tr>
+          </tbody>
+        </table>
+
+        <div class="shortcut-section">Mouse-only Actions</div>
+        <table>
+          <tbody>
+            <tr><td>Mark Complete</td><td>Copy to _diac_output/ and enter read-only mode</td></tr>
+            <tr><td>Reset</td><td>Delete working copy and cursor progress</td></tr>
+          </tbody>
+        </table>
+
+        <p id="shortcuts-hint">Press <strong>?</strong> or <strong>Escape</strong> to close</p>
+      </div>
+    </div>
+
     <!-- ===== SCRIPTS ===== -->
     <!-- Phase 1 -->
     <script src="/static/api.js"></script>
@@ -652,6 +822,9 @@
     <!-- Phase 4 scripts -->
     <script src="/static/visual-hints.js"></script>
     <script src="/static/soft-rules.js"></script>
+
+    <!-- Phase 5 scripts -->
+    <script src="/static/completion.js"></script>
 
     <script>
       /* ----------------------------------------------------------------
@@ -703,12 +876,21 @@
 
             const result = await API.markComplete(window.currentFilePath);
             if (result.ok) {
-              alert(
-                `Complete — output saved to _diac_output/${result.output_path}`,
-              );
+              // Phase 5: update in-memory status so the read-only guard in
+              // character-mode.js (_handleDiacriticKey / _handleClearDiacritics)
+              // takes effect immediately without a page reload.
+              if (window.editorState) {
+                window.editorState.status = "complete";
+              }
+              // Show styled banner (spec §12 step 6) — replaces alert().
+              if (typeof window.showCompletionBanner === "function") {
+                window.showCompletionBanner(result.output_path);
+              }
               await API.loadFileTree();
             } else {
-              alert(`Error: ${result.error || "Mark Complete failed"}`);
+              API.showBlockingError(
+                `Mark Complete failed:\n${result.error || "unknown error"}`,
+              );
             }
           });
 
@@ -726,9 +908,39 @@
             )
               return;
 
+            // Phase 5: exit character mode first if active, so the panel
+            // is hidden cleanly before we clear the document state.
+            if (
+              window.editorState &&
+              window.editorState.mode === "character" &&
+              typeof window.exitCharacterMode === "function"
+            ) {
+              window.exitCharacterMode();
+            }
+
             await API.resetFile(window.currentFilePath);
             window.currentFilePath = null;
             window.currentDoc = null;
+
+            // Phase 5: fully reset editorState so stale line/word data
+            // from the deleted working copy cannot bleed into the next open.
+            if (window.editorState) {
+              window.editorState.filePath = null;
+              window.editorState.status = "untouched";
+              window.editorState.mode = "word";
+              window.editorState.lineIdx = 0;
+              window.editorState.wordIdx = 0;
+              window.editorState.charIdx = 0;
+              window.editorState.lines = [];
+              window.editorState.totalUndiacCount = 0;
+              window.editorState.lastSaveTime = null;
+            }
+
+            // Hide completion banner if it was showing (spec §13: reset
+            // returns to untouched state; any previous completion is voided).
+            if (typeof window.hideCompletionBanner === "function") {
+              window.hideCompletionBanner();
+            }
 
             /* Clear document pane */
             document.getElementById("doc-pane-scroll").innerHTML = "";

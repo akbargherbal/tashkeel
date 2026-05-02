@@ -295,6 +295,9 @@ window.handleCharacterMode = function handleCharacterMode(key, code) {
  */
 async function _handleDiacriticKey(incoming) {
   const state = window.editorState;
+  // Phase 5 (Plan §Task 5.2 / Session 6 Known Issues): read-only guard.
+  // After Mark Complete, navigation still works but diacritic writes are no-ops.
+  if (state.status === "complete") return;
   const word = state.lines[state.lineIdx]?.words[state.wordIdx];
   if (!word) return;
 
@@ -341,6 +344,8 @@ async function _handleDiacriticKey(incoming) {
  */
 async function _handleClearDiacritics() {
   const state = window.editorState;
+  // Phase 5: read-only guard — mirrors _handleDiacriticKey.
+  if (state.status === "complete") return;
   const word = state.lines[state.lineIdx]?.words[state.wordIdx];
   if (!word) return;
 
