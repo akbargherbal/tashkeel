@@ -1,7 +1,7 @@
 # Arabic Diacritics Editor — Product Specification
 
-**Version:** 1.1
-**Status:** Pre-development client brief
+**Version:** 1.2
+**Status:** Pre-development — all open questions resolved
 
 ---
 
@@ -47,6 +47,20 @@ A lightweight **cursor sidecar** (`.diac_cursor.json`) is saved alongside the wo
 /project/diac_chapter_1.txt.diac_cursor.json      ← cursor position only
 ```
 
+The cursor sidecar schema is:
+
+```json
+{
+  "line": 0,
+  "word": 0,
+  "char": null,
+  "status": "in_progress",
+  "last_seen_mtime": 1718000000.0
+}
+```
+
+The `last_seen_mtime` field records the modification timestamp of the working copy at the end of each session. On session resume, if the working copy's current mtime differs from this value, a non-blocking warning banner is shown: `"Working copy was modified externally — edits may conflict"`. See §2.5.
+
 ### 2.3 Resuming a Session
 
 When the user re-opens a file that already has a working copy:
@@ -70,6 +84,14 @@ When the user marks a file as complete, a finalised copy is written to a `_diac_
 ```
 
 The output file uses the **original filename** (without the `diac_` prefix), clearly separating in-progress work from finished deliverables.
+
+### 2.5 Working Copy Conflict Detection
+
+If the user edits the `diac_` working copy externally between sessions (e.g., in a text editor), the app detects this via an mtime check on session resume. The detection is lightweight and non-blocking:
+
+- On every cursor sidecar write, `last_seen_mtime` is updated to the current mtime of the working copy.
+- On `/api/open`, if the working copy's mtime differs from `last_seen_mtime`, the app shows a non-blocking warning banner: `"Working copy was modified externally — edits may conflict"`.
+- The app continues to load normally. No data is discarded.
 
 ---
 
@@ -110,6 +132,7 @@ The document is navigated **word by word**.
 | `↓` Down Arrow  | Move to same word position on **next line**     |
 | `↑` Up Arrow    | Move to same word position on **previous line** |
 | `Enter`         | **Enter Character Mode** for the current word   |
+| `Tab`           | **Jump to next undiacritized word** (next word with ≥1 amber candidate letter); wraps at end of document; no-op if no undiacritized words remain |
 
 The active word is highlighted. Lines use the Zen Focus classes (`zen-active`, `zen-context`, `zen-far`).
 
@@ -317,6 +340,8 @@ These are contextual rules that produce a warning indicator but do not block the
 
 **Soft warning display:** The character receives a subtle amber underline. In Character Mode, a tooltip-style label appears beneath the character explaining the issue in plain language (e.g., `"Tanwin usually appears at the last letter of a word"`).
 
+**Persistence:** Soft warnings are ephemeral — they are recomputed on render from the current state of the working copy and are not stored in the cursor sidecar. They will re-appear automatically if the triggering condition still exists when the file is next opened.
+
 ### 8.4 Letters That Are Canonically Diacritic-free (no amber highlight)
 
 These letters in specific positions are excluded from the "undiacritized candidate" colouring in §6.1:
@@ -500,7 +525,7 @@ The status bar displays (left to right, RTL-aware):
 
 When entering Character Mode, the active word is visually separated from its line context:
 
-- The word renders at a **larger size** (e.g., 2×) in a dedicated fixed panel (top or bottom of the document pane — see §19, Open Question 2).
+- The word renders at a **larger size** (e.g., 2×) in a **dedicated fixed panel at the bottom of the document pane**. The panel height is defined as a named constant (`CHAR_PANEL_HEIGHT`) so the Zen Focus vertical-centre calculation can account for the reserved space.
 - Each character is displayed individually with clear spacing; diacritics above/below are rendered at full size and clearly visible.
 - The main line text dims to zen-far treatment while the character panel is open.
 
@@ -517,6 +542,7 @@ When entering Character Mode, the active word is visually separated from its lin
 | Persistence     | Local file system (direct writes to working copy + cursor sidecar) |
 | Build toolchain | None                                                               |
 | Dependencies    | `flask`, `regex` (grapheme segmentation), `pytest` (testing only)  |
+| Browser         | Google Chrome 87+ (required). Firefox and Safari are not supported in v1. |
 
 ---
 
@@ -528,23 +554,22 @@ When entering Character Mode, the active word is visually separated from its lin
 - **Cloud storage or sync:** Local only.
 - **Multiple simultaneous open files:** One file open at a time.
 - **Undo/redo:** Not in scope for v1. Replace mode and toggle-off serve as the correction path.
+- **Multi-browser support:** Chrome 87+ is the only supported browser in v1. Firefox and Safari are out of scope.
 
 ---
 
-## 19. Open Questions for Next Review
+## 19. Resolved Design Decisions
 
-The following items were flagged during spec drafting and require a decision before development begins:
+The following questions were open during spec drafting and have been resolved prior to development. They are recorded here for traceability.
 
-1. **Undo/redo:** Replace mode handles simple mistakes, but a deeper error (e.g., wrong diacritic applied and not noticed until 10 characters later) has no recovery path in v1. Should a single-level undo (`Ctrl+Z`) be added?
-
-2. **Character Mode expansion area position:** Should the expanded word render _above_ the active line (like a tooltip), or should it occupy a dedicated **fixed panel** at the top or bottom of the doc pane? The fixed panel approach is more stable across line heights and is assumed in §16 pending confirmation.
-
-3. **Jump-to-next-undiacritized shortcut:** A `Tab` key shortcut in Word Mode that jumps to the next word containing undiacritized letters would significantly accelerate work on sparse files. Should this be in v1?
-
-4. **Soft warning persistence:** Should soft warnings (§8.3) be stored in the cursor sidecar and re-displayed on session resume, or are they ephemeral (recomputed on render)?
-
-5. **Working copy conflict:** If the user edits the `diac_` file externally between sessions, the app has no mismatch detection. Should a checksum or timestamp guard be added?
+| # | Question | Decision | Rationale |
+|---|----------|----------|-----------|
+| 1 | Undo/redo in v1? | **Deferred to v2.** Replace mode and toggle-off are the correction path in v1. | Scope control. |
+| 2 | Character Mode expansion panel position? | **Fixed bottom panel.** | More stable across line heights; avoids z-index conflicts with the Zen Focus layer. Reflected in §16. |
+| 3 | Tab jump to next undiacritized word in v1? | **Yes, in v1.** `Tab` in Word Mode is included. `editorState` is designed for it from Phase 2. | High ergonomic payoff; `Tab` is already claimed by `preventDefault()` in the key interception pattern. Reflected in §5.1. |
+| 4 | Soft warning persistence? | **Ephemeral** — recomputed on render, not stored in the cursor sidecar. | Simplest correct behaviour; sidecar carries only cursor position and status. Reflected in §8.3. |
+| 5 | Working copy conflict detection? | **Lightweight mtime guard.** `last_seen_mtime` stored in sidecar; mismatch triggers a non-blocking warning banner on session resume. | Sufficient protection without checksum overhead. Reflected in §2.5. |
 
 ---
 
-_End of specification v1.1_
+_End of specification v1.2_
