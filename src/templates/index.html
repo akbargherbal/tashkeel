@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+  <!--
+  index.html — Arabic Diacritics Editor
+  Phase 1 skeleton.  All structural IDs, CSS custom properties, and JS hooks
+  are defined here so Phase 2–5 can add renderer.js / navigation.js /
+  character-mode.js without touching this file's layout.
+
+  CSS conventions
+  ---------------
+  --char-panel-height   Named constant for Zen Focus vertical-centre calc
+                        (Plan §2.3 locked decision OQ2; Phase 3 sets to 180px)
+  --status-bar-height   Fixed; never changes.
+  --sidebar-width       Fixed; never changes.
+
+  JS hook protocol
+  ----------------
+  Phase 2 sets:  window.renderDocument(lines, cursor)
+                 window.flushCursorNow()   (called on file-switch / unload)
+  Phase 3 sets:  window.CHAR_PANEL_HEIGHT  (in px, matches CSS var)
+  These are checked with typeof before calling — no hard dependencies
+  between phases.
+-->
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arabic Diacritics Editor</title>
+
+    <!-- Amiri font — designed for classical Arabic with diacritics (spec §16) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Tailwind CSS via CDN — zero build toolchain (spec §17) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+      /* ------------------------------------------------------------------
+       CSS custom properties — single source of truth for layout constants
+       ------------------------------------------------------------------ */
+      :root {
+        --char-panel-height: 0px; /* Phase 3 sets to 180px when entering char mode */
+        --status-bar-height: 36px;
+        --sidebar-width: 260px;
+
+        /* Amber — undiacritized candidate colour (spec §6.1) */
+        --amber: #d97706;
+
+        /* Zen Focus opacity tiers (spec §16) */
+        --zen-active-opacity: 1;
+        --zen-context-opacity: 0.55;
+        --zen-far-opacity: 0.18;
+      }
+
+      /* ------------------------------------------------------------------
+       Base
+       ------------------------------------------------------------------ */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #1a1a1a;
+        color: #e8e0d5;
+        font-family:
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          sans-serif;
+        font-size: 14px;
+      }
+
+      /* ------------------------------------------------------------------
+       Sidebar (fixed left)
+       ------------------------------------------------------------------ */
+      #sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: var(--sidebar-width);
+        height: 100vh;
+        background: #111;
+        border-right: 1px solid #242424;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        z-index: 10;
+      }
+
+      #sidebar-header {
+        padding: 12px 16px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #555;
+        border-bottom: 1px solid #242424;
+        flex-shrink: 0;
+      }
+
+      #file-tree {
+        flex: 1;
+        overflow-y: auto;
+        padding: 6px 0;
+      }
+
+      /* File tree entries */
+      .file-entry {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 16px;
+        cursor: pointer;
+        color: #999;
+        transition:
+          background 0.1s,
+          color 0.1s;
+        user-select: none;
+      }
+      .file-entry:hover {
+        background: #1c1c1c;
+        color: #ddd;
+      }
+      .file-entry.active {
+        background: #222;
+        color: #fff;
+      }
+
+      .file-entry .status-icon {
+        font-size: 9px;
+        flex-shrink: 0;
+        color: #444;
+      }
+      .file-entry .file-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+      }
+
+      /* Status icon colours (spec §11) */
+      .status-untouched .status-icon {
+        color: #444;
+      }
+      .status-in_progress .status-icon {
+        color: var(--amber);
+      }
+      .status-complete .status-icon {
+        color: #22c55e;
+      }
+
+      #sidebar-actions {
+        padding: 10px 12px;
+        border-top: 1px solid #242424;
+        display: flex;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      /* ------------------------------------------------------------------
+       Buttons
+       ------------------------------------------------------------------ */
+      .btn {
+        padding: 5px 10px;
+        font-size: 12px;
+        border-radius: 4px;
+        border: 1px solid #333;
+        background: #1c1c1c;
+        color: #aaa;
+        cursor: pointer;
+        transition:
+          background 0.1s,
+          color 0.1s;
+      }
+      .btn:hover:not(:disabled) {
+        background: #2a2a2a;
+        color: #fff;
+      }
+      .btn:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+
+      /* ------------------------------------------------------------------
+       Main area (occupies space to the right of the sidebar)
+       ------------------------------------------------------------------ */
+      #main {
+        margin-left: var(--sidebar-width);
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      /* ------------------------------------------------------------------
+       Document pane — overflow:hidden; Zen Focus translateY here (Phase 2)
+       ------------------------------------------------------------------ */
+      #doc-pane-wrapper {
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+        /* Reserve space at the bottom for the char panel + status bar.
+         Phase 3 updates --char-panel-height so this adjusts automatically. */
+        padding-bottom: calc(
+          var(--char-panel-height) + var(--status-bar-height)
+        );
+      }
+
+      /* Inner container that Phase 2 applies transform: translateY() to.
+       All <div class="line"> elements are direct children of this div. */
+      #doc-pane-scroll {
+        will-change: transform;
+        transition: transform 300ms ease;
+        padding: 0 10%;
+        /* Padding creates enough space for the first/last lines to reach
+         the vertical centre of the viewport (Zen Focus, spec §16). */
+        padding-top: 50vh;
+        padding-bottom: 50vh;
+      }
+
+      /* ------------------------------------------------------------------
+       Line and word layout (populated by Phase 2 renderer.js)
+       ------------------------------------------------------------------ */
+
+      /* Each line is a block with RTL Arabic text (spec §2.1 / §16) */
+      .line {
+        font-family: "Amiri", serif;
+        font-size: 32px; /* spec §16: minimum 24px; prefer 32px+ */
+        line-height: 2;
+        direction: rtl;
+        text-align: right;
+        white-space: nowrap; /* horizontal scroll rather than wrapping */
+        margin: 0;
+        transition: opacity 200ms ease;
+      }
+
+      /* Zen Focus opacity tiers (spec §16) — assigned by Phase 2 navigation.js */
+      .zen-active {
+        opacity: var(--zen-active-opacity);
+      }
+      .zen-context {
+        opacity: var(--zen-context-opacity);
+      }
+      .zen-far {
+        opacity: var(--zen-far-opacity);
+      }
+
+      /* Word span — inline, non-contenteditable */
+      .word {
+        display: inline;
+        border-radius: 3px;
+        padding: 0 2px;
+        cursor: default;
+        transition:
+          background 0.1s,
+          outline 0.1s;
+      }
+      .word.word-active {
+        background: rgba(217, 119, 6, 0.12);
+        outline: 1px solid rgba(217, 119, 6, 0.35);
+        outline-offset: 1px;
+      }
+
+      /* Punctuation span — visible, non-navigable (Plan §Task 1.2 / §2.1) */
+      .punct {
+        display: inline;
+        color: #777;
+      }
+
+      /* ------------------------------------------------------------------
+       Phase 4 visual hints (CSS pre-defined so Phase 4 only adds classes)
+       ------------------------------------------------------------------ */
+
+      /* Undiacritized candidate letter — amber highlight (spec §6.1) */
+      .amber-candidate {
+        color: var(--amber);
+      }
+
+      /* Word with ≥1 undiacritized candidate — dot beneath (spec §6.2) */
+      .word-has-undiac::after {
+        content: "·";
+        display: inline-block;
+        font-size: 8px;
+        color: var(--amber);
+        vertical-align: sub;
+        margin-right: 2px;
+      }
+
+      /* Soft rule — amber wavy underline on the character tile (spec §8.3) */
+      .soft-warning-underline {
+        text-decoration: underline;
+        text-decoration-color: var(--amber);
+        text-decoration-style: wavy;
+        text-underline-offset: 3px;
+      }
+
+      /* ------------------------------------------------------------------
+       Empty state
+       ------------------------------------------------------------------ */
+      #empty-state {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #3a3a3a;
+        font-size: 14px;
+        pointer-events: none;
+        letter-spacing: 0.02em;
+      }
+
+      /* ------------------------------------------------------------------
+       Character Mode panel (fixed above status bar — Phase 3 populates)
+       spec §16: named constant CHAR_PANEL_HEIGHT; Zen Focus accounts for it
+       ------------------------------------------------------------------ */
+      #char-panel {
+        position: fixed;
+        bottom: var(--status-bar-height);
+        left: var(--sidebar-width);
+        right: 0;
+        height: var(--char-panel-height); /* 0px until Phase 3 opens it */
+        background: #141414;
+        border-top: 1px solid #242424;
+        display: none; /* Phase 3 sets to 'flex' when entering char mode */
+        align-items: center;
+        justify-content: center;
+        z-index: 20;
+        overflow: hidden;
+      }
+
+      /* ------------------------------------------------------------------
+       Status bar (fixed bottom — spec §15)
+       ------------------------------------------------------------------ */
+      #status-bar {
+        position: fixed;
+        bottom: 0;
+        left: var(--sidebar-width);
+        right: 0;
+        height: var(--status-bar-height);
+        background: #111;
+        border-top: 1px solid #242424;
+        display: flex;
+        align-items: center;
+        padding: 0 16px;
+        gap: 20px;
+        font-size: 12px;
+        color: #555;
+        z-index: 30;
+        user-select: none;
+      }
+
+      #status-mode {
+        color: #999;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+      #status-position {
+        color: #666;
+      }
+      #status-undiac {
+        color: #666;
+      }
+      #status-char {
+        color: #666;
+        display: none;
+      } /* visible in char mode only */
+
+      #status-autosave {
+        margin-left: auto;
+        color: #22c55e;
+        font-size: 11px;
+        opacity: 0;
+        transition: opacity 300ms ease;
+      }
+      #status-autosave.visible {
+        opacity: 1;
+      }
+
+      /* ------------------------------------------------------------------
+       Conflict warning banner (non-blocking — spec §2.5)
+       Phase 2 shows/hides this via JS.
+       ------------------------------------------------------------------ */
+      #conflict-banner {
+        position: fixed;
+        top: 0;
+        left: var(--sidebar-width);
+        right: 0;
+        background: rgba(161, 98, 7, 0.85);
+        color: #fef3c7;
+        font-size: 12px;
+        padding: 6px 16px;
+        display: none;
+        align-items: center;
+        gap: 12px;
+        z-index: 40;
+      }
+      #conflict-banner.visible {
+        display: flex;
+      }
+      #conflict-banner-dismiss {
+        margin-left: auto;
+        cursor: pointer;
+        font-size: 16px;
+        line-height: 1;
+        background: none;
+        border: none;
+        color: inherit;
+      }
+
+      /* ------------------------------------------------------------------
+       Blocking error banner (api.js manages visibility — spec §Plan Task 1.4)
+       ------------------------------------------------------------------ */
+      #error-banner {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      #error-banner.visible {
+        display: flex;
+      }
+
+      #error-banner-box {
+        background: #1e1e1e;
+        border: 1px solid #dc2626;
+        border-radius: 8px;
+        padding: 28px 36px;
+        max-width: 500px;
+        width: 90%;
+        text-align: center;
+      }
+
+      #error-banner-box h2 {
+        color: #dc2626;
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0 0 12px;
+      }
+
+      #error-banner-msg {
+        color: #ccc;
+        font-size: 14px;
+        line-height: 1.6;
+        margin-bottom: 24px;
+        white-space: pre-wrap; /* preserve newlines from JS template literal */
+      }
+
+      #error-banner-ack {
+        padding: 8px 24px;
+        background: #dc2626;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background 0.1s;
+      }
+      #error-banner-ack:hover {
+        background: #b91c1c;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ===== SIDEBAR ===== -->
+    <div id="sidebar">
+      <div id="sidebar-header">Files</div>
+
+      <div id="file-tree">
+        <!-- Populated by API.loadFileTree() on DOMContentLoaded -->
+      </div>
+
+      <div id="sidebar-actions">
+        <!--
+        Mark Complete and Reset are mouse-only (spec §14 / Plan locked decision).
+        The disabled attribute is removed by api.js when a file is open.
+      -->
+        <button class="btn" id="btn-mark-complete" disabled>
+          Mark Complete
+        </button>
+        <button class="btn" id="btn-reset" disabled>Reset</button>
+      </div>
+    </div>
+
+    <!-- ===== MAIN ===== -->
+    <div id="main">
+      <!-- Non-blocking conflict warning (spec §2.5) -->
+      <div id="conflict-banner">
+        ⚠ Working copy was modified externally — edits may conflict
+        <button id="conflict-banner-dismiss" aria-label="Dismiss">✕</button>
+      </div>
+
+      <!-- Document pane — overflow:hidden; Phase 2 wires Zen Focus here -->
+      <div id="doc-pane-wrapper">
+        <div id="doc-pane-scroll">
+          <!--
+          Phase 2 renderer.js renders:
+            <div class="line zen-active|zen-context|zen-far">
+              <span class="word">...</span>
+              <span class="punct"> </span>
+              ...
+            </div>
+          for each line in the open file.
+        --></div>
+        <div id="empty-state">Open a file to begin editing</div>
+      </div>
+
+      <!-- Character Mode panel — Phase 3 populates and shows this -->
+      <div id="char-panel">
+        <!--
+        Phase 3 character-mode.js renders the expanded word here.
+        Each grapheme cluster is a <span class="char-tile"> element.
+        The active cluster gets class "char-tile-active".
+      --></div>
+    </div>
+
+    <!-- ===== STATUS BAR ===== -->
+    <div id="status-bar" aria-live="polite">
+      <span id="status-mode">WORD MODE</span>
+      <span id="status-position">—</span>
+      <span id="status-undiac">Undiacritized: –</span>
+      <span id="status-char"></span>
+      <!-- only shown in Character Mode -->
+      <span id="status-autosave">Auto-saved ✓</span>
+    </div>
+
+    <!-- ===== BLOCKING ERROR BANNER ===== -->
+    <!--
+    Shown by API.showBlockingError(message) when /api/write_char returns non-200.
+    Halts all editor input until the user clicks Acknowledge.
+    (Plan §Task 1.4 frontend contract)
+  -->
+    <div
+      id="error-banner"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="error-banner-title"
+    >
+      <div id="error-banner-box">
+        <h2 id="error-banner-title">⚠ Write Error</h2>
+        <p id="error-banner-msg"></p>
+        <button id="error-banner-ack">Acknowledge</button>
+      </div>
+    </div>
+
+    <!-- ===== SCRIPTS ===== -->
+    <!-- Phase 1 -->
+    <script src="/static/api.js"></script>
+
+    <!-- Phase 2 scripts — added in Session 4:-->
+    <script src="/static/editor-state.js"></script>
+    <script src="/static/renderer.js"></script>
+    <script src="/static/navigation.js"></script>
+
+    <!-- Phase 3 scripts — added in Session 5:
+  <script src="/static/character-mode.js"></script>
+  <script src="/static/diacritic-engine.js"></script>
+  -->
+
+    <!-- Phase 4 scripts — added in Session 6:
+  <script src="/static/visual-hints.js"></script>
+  <script src="/static/soft-rules.js"></script>
+  -->
+
+    <script>
+      /* ----------------------------------------------------------------
+       Phase 1 init
+       Loads config, populates file tree, wires sidebar buttons.
+       Phase 2 will replace renderDocument() and flushCursorNow() hooks.
+       ---------------------------------------------------------------- */
+      document.addEventListener("DOMContentLoaded", async () => {
+        /* Load keymap — stored on window for Phase 2/3 keyboard handler */
+        const cfg = await API.getConfig();
+        window.KEYMAP = cfg.keymap || {};
+
+        /* Populate file tree */
+        await API.loadFileTree();
+
+        /* Wire blocking error banner acknowledge button */
+        document
+          .getElementById("error-banner-ack")
+          .addEventListener("click", () => API.clearBlockingError());
+
+        /* Wire non-blocking conflict banner dismiss */
+        document
+          .getElementById("conflict-banner-dismiss")
+          .addEventListener("click", () => {
+            document
+              .getElementById("conflict-banner")
+              .classList.remove("visible");
+          });
+
+        /* ---- Mark Complete (mouse-only, spec §14) ---- */
+        document
+          .getElementById("btn-mark-complete")
+          .addEventListener("click", async () => {
+            if (!window.currentFilePath) return;
+            if (
+              !confirm(
+                "Mark this file as complete?\n\n" +
+                  "The working copy will be copied to _diac_output/.\n" +
+                  "You can continue editing — this action does not lock the file.",
+              )
+            )
+              return;
+
+            // Flush cursor before completing (spec §10)
+            if (typeof window.flushCursorNow === "function") {
+              await window.flushCursorNow();
+            }
+
+            const result = await API.markComplete(window.currentFilePath);
+            if (result.ok) {
+              alert(
+                `Complete — output saved to _diac_output/${result.output_path}`,
+              );
+              await API.loadFileTree();
+            } else {
+              alert(`Error: ${result.error || "Mark Complete failed"}`);
+            }
+          });
+
+        /* ---- Reset (mouse-only, spec §14) ---- */
+        document
+          .getElementById("btn-reset")
+          .addEventListener("click", async () => {
+            if (!window.currentFilePath) return;
+            if (
+              !confirm(
+                "Reset this file?\n\n" +
+                  "⚠ The working copy and all cursor progress will be permanently deleted.\n" +
+                  "_diac_output/ is not affected.",
+              )
+            )
+              return;
+
+            await API.resetFile(window.currentFilePath);
+            window.currentFilePath = null;
+            window.currentDoc = null;
+
+            /* Clear document pane */
+            document.getElementById("doc-pane-scroll").innerHTML = "";
+            document.getElementById("empty-state").style.display = "";
+
+            /* Disable sidebar buttons */
+            document.getElementById("btn-mark-complete").disabled = true;
+            document.getElementById("btn-reset").disabled = true;
+
+            /* Refresh file tree to show updated status */
+            await API.loadFileTree();
+          });
+
+        /* ---- beforeunload — flush cursor sidecar immediately (spec §10) ---- */
+        // Gap 2 Fix: Use navigator.sendBeacon for reliable flush on tab close
+        window.addEventListener("beforeunload", () => {
+          if (window.currentFilePath && window.editorState) {
+            const payload = JSON.stringify({
+              file_path: window.currentFilePath,
+              cursor: {
+                line: window.editorState.lineIdx,
+                word: window.editorState.wordIdx,
+                char: window.editorState.charIdx,
+              },
+            });
+            // sendBeacon is synchronous and crash-safe
+            navigator.sendBeacon(
+              "/api/save_cursor",
+              new Blob([payload], { type: "application/json" }),
+            );
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
