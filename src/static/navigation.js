@@ -116,7 +116,10 @@ window.handleWordMode = function(key) {
             window.enterCharacterMode();
         }
     } else if (key === 'Tab') {
-        console.log("Tab pressed: Jump to next undiacritized word (Phase 4)");
+        // Phase 4: Jump to next undiacritized word
+        if (_tabJumpToNextUndiac()) {
+            moved = true;
+        }
     }
 
     if (moved) {
@@ -124,4 +127,47 @@ window.handleWordMode = function(key) {
         updateStatusBar();
         scheduleCursorSave();
     }
+};
+
+/**
+ * Phase 4: Scan forward for the next word with undiacCount > 0.
+ * Wraps around at the end of the document.
+ * Returns true if the cursor moved, false if no other undiacritized words exist.
+ */
+function _tabJumpToNextUndiac() {
+    const state = window.editorState;
+    const lines = state.lines;
+    
+    if (state.totalUndiacCount === 0) return false;
+    
+    // Phase 1: search from next word to end of document
+    for (let li = state.lineIdx; li < lines.length; li++) {
+        const startWi = (li === state.lineIdx) ? state.wordIdx + 1 : 0;
+        for (let wi = startWi; wi < lines[li].words.length; wi++) {
+            const word = lines[li].words[wi];
+            if (word.isNavigable && word.undiacCount > 0) {
+                state.lineIdx = li;
+                state.wordIdx = wi;
+                return true;
+            }
+        }
+    }
+    
+    // Phase 2: wrap — search from start of document to current word (inclusive)
+    for (let li = 0; li <= state.lineIdx; li++) {
+        const endWi = (li === state.lineIdx) ? state.wordIdx : lines[li].words.length - 1;
+        for (let wi = 0; wi <= endWi; wi++) {
+            const word = lines[li].words[wi];
+            if (word.isNavigable && word.undiacCount > 0) {
+                // If it wrapped all the way around to the exact same word, don't "move"
+                if (li === state.lineIdx && wi === state.wordIdx) return false;
+                
+                state.lineIdx = li;
+                state.wordIdx = wi;
+                return true;
+            }
+        }
+    }
+    
+    return false;
 }

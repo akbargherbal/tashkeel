@@ -1,11 +1,19 @@
 /**
  * renderer.js
  * Document rendering, tokenization, and Zen Focus teleprompter.
+ *
+ * Phase 4 changes:
+ *   1. Each grapheme cluster inside a word span is now wrapped in
+ *      <span class="letter-cluster [punct]" data-char-idx="N">
+ *      instead of a bare text node.  This lets visual-hints.js locate and
+ *      toggle .amber-candidate per cluster.
+ *   2. classifyAllWords() is called at the end of renderDocument() so amber
+ *      colouring is applied immediately on file open.
  */
 
 const segmenter = new Intl.Segmenter('ar', { granularity: 'grapheme' });
 // Matches purely punctuation/symbol tokens
-const PUNCT_REGEX = /^[\p{P}\p{S}]+$/u; 
+const PUNCT_REGEX = /^[\p{P}\p{S}]+$/u;
 
 // Gap 1 Fix: Standalone segmentWord function
 window.segmentWord = function(word) {
@@ -15,11 +23,11 @@ window.segmentWord = function(word) {
 window.renderDocument = function(rawLines, cursor) {
     const scrollPane = document.getElementById('doc-pane-scroll');
     scrollPane.innerHTML = '';
-    
+
     window.editorState.lines = [];
     window.editorState.filePath = window.currentFilePath;
     window.editorState.status = cursor.status || 'in_progress';
-    
+
     // Restore cursor or default to 0,0
     window.editorState.lineIdx = cursor.line || 0;
     window.editorState.wordIdx = cursor.word || 0;
@@ -43,38 +51,38 @@ window.renderDocument = function(rawLines, cursor) {
                 lineDiv.appendChild(document.createTextNode(token));
             } else {
                 // This is a word token (matches backend word_idx)
-                const clusters = window.segmentWord(token);
+                const clusters    = window.segmentWord(token);
                 const isPurePunct = clusters.every(c => PUNCT_REGEX.test(c));
 
                 const wordObj = {
-                    index: wordIdxCounter,
-                    clusters: clusters,
-                    isNavigable: !isPurePunct,
-                    undiacCount: 0,
-                    hasSoftWarning: false
+                    index:        wordIdxCounter,
+                    clusters:     clusters,
+                    isNavigable:  !isPurePunct,
+                    undiacCount:  0,         // Phase 4 populates this below
+                    hasSoftWarning: false    // Phase 4
                 };
-                
+
                 lineData.words.push(wordObj);
 
                 const wordSpan = document.createElement('span');
                 wordSpan.id = `word-${lIdx}-${wordIdxCounter}`;
-                
+
                 if (isPurePunct) {
                     wordSpan.className = 'punct';
                     wordSpan.textContent = token;
                 } else {
                     wordSpan.className = 'word';
-                    // Render clusters. If a cluster is punctuation attached to a word, 
-                    // wrap it in a punct span for styling, but keep it in the word span.
-                    clusters.forEach(cluster => {
-                        if (PUNCT_REGEX.test(cluster)) {
-                            const pSpan = document.createElement('span');
-                            pSpan.className = 'punct';
-                            pSpan.textContent = cluster;
-                            wordSpan.appendChild(pSpan);
-                        } else {
-                            wordSpan.appendChild(document.createTextNode(cluster));
-                        }
+
+                    // Phase 4: wrap every cluster in a <span class="letter-cluster">
+                    // so visual-hints.js can add/remove .amber-candidate per cluster.
+                    clusters.forEach((cluster, cIdx) => {
+                        const clSpan = document.createElement('span');
+                        clSpan.dataset.charIdx = cIdx;
+                        clSpan.className = PUNCT_REGEX.test(cluster)
+                            ? 'letter-cluster punct'
+                            : 'letter-cluster';
+                        clSpan.textContent = cluster;
+                        wordSpan.appendChild(clSpan);
                     });
                 }
 
@@ -89,15 +97,21 @@ window.renderDocument = function(rawLines, cursor) {
 
     // Ensure cursor is on a valid navigable word
     window.clampCursorToNavigable();
-    
+
     updateZenFocus();
     updateStatusBar();
+
+    // Phase 4: classify all clusters for amber highlighting immediately on open.
+    // classifyAllWords() is defined in visual-hints.js which loads after this file.
+    if (typeof window.classifyAllWords === 'function') {
+        window.classifyAllWords();
+    }
 };
 
 window.updateZenFocus = function() {
     const state = window.editorState;
     const lines = document.querySelectorAll('.line');
-    
+
     lines.forEach((line, idx) => {
         line.classList.remove('zen-active', 'zen-context', 'zen-far');
         if (idx === state.lineIdx) {
@@ -111,7 +125,7 @@ window.updateZenFocus = function() {
 
     // Remove active highlight from all words
     document.querySelectorAll('.word').forEach(w => w.classList.remove('word-active'));
-    
+
     // Add highlight to current word
     const activeWordEl = document.getElementById(`word-${state.lineIdx}-${state.wordIdx}`);
     if (activeWordEl && state.mode === 'word') {
@@ -122,26 +136,29 @@ window.updateZenFocus = function() {
     const activeLineEl = document.getElementById(`line-${state.lineIdx}`);
     if (activeLineEl) {
         const scrollPane = document.getElementById('doc-pane-scroll');
-        // Calculate offset to center the line. 
+        // Calculate offset to center the line.
         // Uses CSS var --char-panel-height which is 0 in Word Mode.
-        const panelHeight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--char-panel-height')) || 0;
-        const viewportHeight = window.innerHeight - panelHeight - 36; // 36 is status bar
-        
+        const panelHeight = parseInt(
+            getComputedStyle(document.documentElement).getPropertyValue('--char-panel-height')
+        ) || 0;
+        const viewportHeight = window.innerHeight - panelHeight - 36; // 36 = status bar
+
         const lineCenter = activeLineEl.offsetTop + (activeLineEl.offsetHeight / 2);
         const translateY = -(lineCenter - (viewportHeight / 2));
-        
+
         scrollPane.style.transform = `translateY(${translateY}px)`;
     }
 };
 
 window.updateStatusBar = function() {
     const state = window.editorState;
-    document.getElementById('status-mode').textContent = state.mode === 'word' ? 'WORD MODE' : 'CHARACTER MODE';
-    
+    document.getElementById('status-mode').textContent =
+        state.mode === 'word' ? 'WORD MODE' : 'CHARACTER MODE';
+
     const lineTotal = state.lines.length;
     const wordTotal = state.lines[state.lineIdx]?.words.length || 0;
-    
-    document.getElementById('status-position').textContent = 
+
+    document.getElementById('status-position').textContent =
         `Line ${state.lineIdx + 1} / ${lineTotal}  |  Word ${state.wordIdx + 1} / ${wordTotal}`;
 
     // Gap 3 Fix: Wire the undiacritized count
@@ -163,15 +180,18 @@ window.clampCursorToNavigable = function() {
     if (state.wordIdx >= line.words.length) {
         state.wordIdx = line.words.length - 1;
     }
-    
+
     while (state.wordIdx >= 0 && !line.words[state.wordIdx].isNavigable) {
         state.wordIdx--;
     }
-    
+
     if (state.wordIdx < 0) {
         // Scan forward if no navigable word found looking backward
         state.wordIdx = 0;
-        while (state.wordIdx < line.words.length && !line.words[state.wordIdx].isNavigable) {
+        while (
+            state.wordIdx < line.words.length &&
+            !line.words[state.wordIdx].isNavigable
+        ) {
             state.wordIdx++;
         }
     }

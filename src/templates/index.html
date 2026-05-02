@@ -477,7 +477,7 @@
       /* Container holds all cluster tiles in RTL order */
       .char-tiles-container {
         display: flex;
-        flex-direction: row;          /* tiles flow horizontally */
+        flex-direction: row; /* tiles flow horizontally */
         gap: 12px;
         padding: 0 24px;
         overflow-x: auto;
@@ -488,15 +488,19 @@
 
       /* Individual grapheme cluster tile */
       .char-tile {
+        position: relative; /* Phase 4: required for tooltip positioning */
         font-family: "Amiri", serif;
-        font-size: 64px;              /* 2× reading size — spec §16 */
+        font-size: 64px; /* 2× reading size — spec §16 */
         line-height: 1.6;
         color: #c8bfb0;
         padding: 0 6px;
         border-radius: 4px;
         border: 1px solid transparent;
         cursor: default;
-        transition: background 0.1s, border-color 0.1s, color 0.1s;
+        transition:
+          background 0.1s,
+          border-color 0.1s,
+          color 0.1s;
         white-space: nowrap;
       }
 
@@ -515,16 +519,39 @@
         text-underline-offset: 4px;
       }
 
+      /* Phase 4: Soft warning tooltip */
+      .char-soft-tooltip {
+        position: absolute;
+        bottom: -22px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(30, 20, 0, 0.9);
+        border: 1px solid rgba(217, 119, 6, 0.5);
+        border-radius: 3px;
+        font-size: 9px;
+        font-family: sans-serif;
+        color: #d97706;
+        white-space: nowrap;
+        padding: 2px 5px;
+        pointer-events: none;
+        z-index: 10;
+      }
+
       /* Hard-rule rejection flash animation */
       @keyframes flash-blocked-anim {
-        0%   { background: rgba(220, 38, 38, 0.0); }
-        40%  { background: rgba(220, 38, 38, 0.25); }
-        100% { background: rgba(220, 38, 38, 0.0); }
+        0% {
+          background: rgba(220, 38, 38, 0);
+        }
+        40% {
+          background: rgba(220, 38, 38, 0.25);
+        }
+        100% {
+          background: rgba(220, 38, 38, 0);
+        }
       }
       #char-panel.flash-blocked {
         animation: flash-blocked-anim 220ms ease-out;
       }
-
     </style>
   </head>
   <body>
@@ -613,19 +640,18 @@
     <!-- Phase 1 -->
     <script src="/static/api.js"></script>
 
-    <!-- Phase 2 scripts — added in Session 4:-->
+    <!-- Phase 2 scripts -->
     <script src="/static/editor-state.js"></script>
     <script src="/static/renderer.js"></script>
     <script src="/static/navigation.js"></script>
 
-    <!-- Phase 3 scripts — added in Session 4 -->
+    <!-- Phase 3 scripts -->
     <script src="/static/diacritic-engine.js"></script>
     <script src="/static/character-mode.js"></script>
 
-    <!-- Phase 4 scripts — added in Session 6:
-  <script src="/static/visual-hints.js"></script>
-  <script src="/static/soft-rules.js"></script>
-  -->
+    <!-- Phase 4 scripts -->
+    <script src="/static/visual-hints.js"></script>
+    <script src="/static/soft-rules.js"></script>
 
     <script>
       /* ----------------------------------------------------------------
@@ -636,7 +662,8 @@
       document.addEventListener("DOMContentLoaded", async () => {
         /* Load keymap — stored on window for Phase 2/3 keyboard handler */
         const cfg = await API.getConfig();
-        window.KEYMAP = cfg.keymap || {};
+        // Phase 4 Fix: Extract bindings object so window.KEYMAP[code] works
+        window.KEYMAP = cfg.keymap?.bindings || {};
 
         /* Populate file tree */
         await API.loadFileTree();
