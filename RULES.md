@@ -25,7 +25,7 @@ Each concern has exactly one owner. Do not move logic between modules.
 | Module | Owns |
 |---|---|
 | `diacritic_engine.py` | Byte-level cluster write, canonical diacritic ordering. No Flask. No global NFC. |
-| `app.py` | All Flask routes. `_resolve_safe()` path guard must wrap **every** user-supplied file path. |
+| `app.py` | All Flask routes. `_resolve_safe()` path guard must wrap every user-supplied file path that operates **below** ROOT_DIR. The three folder-selector routes (`/api/browse`, `/api/set_folder`, `/api/current_folder`) are exempt — they operate at the ROOT_DIR level, not below it. See §3.8. |
 | `static/api.js` | All HTTP calls to the backend. The blocking error banner (`showBlockingError`). File tree rendering. |
 | `static/editor-state.js` | The `editorState` object schema. No logic — state only. |
 | `static/renderer.js` | DOM rendering of the document pane. `window.segmentWord()`. `clampCursorToNavigable()`. `updateZenFocus()`. |
@@ -130,9 +130,9 @@ guarantees the request fires on tab close/crash. Do not replace it.
 does not show its own error UI. Do not break this separation.
 
 ### 3.8 `_resolve_safe()` on every backend route
-Every Flask route that accepts a user-supplied file path must pass it through
-`_resolve_safe()`. This prevents path traversal attacks. If you add a new route,
-wrap the path argument before any file I/O.
+Every Flask route that accepts a user-supplied file path **that operates below ROOT_DIR** must pass it through `_resolve_safe()`. This prevents path traversal attacks.
+
+**Exempt routes (Session 10):** `/api/browse`, `/api/set_folder`, and `/api/current_folder` do not use `_resolve_safe()` — they operate at the ROOT_DIR level, not below it. `/api/set_folder` uses `os.path.isdir()` for validation instead. Using `_resolve_safe()` here would be circular (you cannot validate a path relative to ROOT_DIR when that path *is* ROOT_DIR). This exemption is documented in each route's docstring. Do not add `_resolve_safe()` to these three routes.
 
 ### 3.9 Soft rules are ephemeral
 Soft rule warnings are recomputed on every `_renderCharPanel()` call. They are

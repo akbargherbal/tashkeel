@@ -37,8 +37,13 @@ Then open **http://127.0.0.1:5000** in Chrome.
 
 ### Pointing at a different text directory
 
-By default the app scans the current working directory for `.txt` and `.md`
-files. Set `TASHKEEL_ROOT` to point at a different folder:
+Click **Open Folder** in the top-left of the sidebar, enter or browse to your
+text directory, then click **Load**. The choice is saved to `config.json`
+alongside `app.py` and restored automatically on the next launch.
+
+Alternatively, set `TASHKEEL_ROOT` before starting the server (useful for
+scripted or automated launches). `config.json` takes priority over the env var
+if both are present.
 
 ```bash
 # Windows
@@ -127,6 +132,9 @@ _diac_output/
 
 The `diac_` prefix and `_diac_output/` directory are hidden from the file tree.
 The original source file is never read after the working copy is created.
+
+`config.json` is also created alongside `app.py` the first time you use **Open
+Folder**. It stores the last-used project directory and is git-ignored.
 
 ---
 
