@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+buhoor_drums_mp3/
+DEV/
+
+
+# Virtual environments
+.venv
+
+# Output
+*.wav
+*.mp3
