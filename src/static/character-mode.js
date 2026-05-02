@@ -41,28 +41,31 @@ const _PUNCT_RE = /^[\p{P}\p{S}]+$/u;
  * - Opens the char panel and recalculates Zen Focus.
  */
 window.enterCharacterMode = function enterCharacterMode() {
-    const state = window.editorState;
-    const line = state.lines[state.lineIdx];
-    if (!line) return;
+  const state = window.editorState;
+  const line = state.lines[state.lineIdx];
+  if (!line) return;
 
-    const word = line.words[state.wordIdx];
-    if (!word || !word.isNavigable || word.clusters.length === 0) return;
+  const word = line.words[state.wordIdx];
+  if (!word || !word.isNavigable || word.clusters.length === 0) return;
 
-    state.mode = 'character';
-    state.charIdx = 0; // First cluster = rightmost in RTL display
+  state.mode = "character";
+  state.charIdx = 0; // First cluster = rightmost in RTL display
 
-    // Update CSS variable so Zen Focus trims the effective viewport height.
-    document.documentElement.style.setProperty('--char-panel-height', `${CHAR_PANEL_HEIGHT}px`);
+  // Update CSS variable so Zen Focus trims the effective viewport height.
+  document.documentElement.style.setProperty(
+    "--char-panel-height",
+    `${CHAR_PANEL_HEIGHT}px`,
+  );
 
-    // Reveal panel (overrides display:none in CSS).
-    const panel = document.getElementById('char-panel');
-    panel.style.display = 'flex';
+  // Reveal panel (overrides display:none in CSS).
+  const panel = document.getElementById("char-panel");
+  panel.style.display = "flex";
 
-    _renderCharPanel();
-    // Dim the active line to zen-far treatment while char mode is open.
-    _applyCharModeLineStyle(true);
-    window.updateStatusBar();
-    _updateCharStatusBar();
+  _renderCharPanel();
+  // Dim the active line to zen-far treatment while char mode is open.
+  _applyCharModeLineStyle(true);
+  window.updateStatusBar();
+  _updateCharStatusBar();
 };
 
 /**
@@ -70,26 +73,26 @@ window.enterCharacterMode = function enterCharacterMode() {
  * Preserves the current word position (spec §5.2: Escape keeps word position).
  */
 window.exitCharacterMode = function exitCharacterMode() {
-    const state = window.editorState;
-    state.mode = 'word';
-    state.charIdx = 0;
+  const state = window.editorState;
+  state.mode = "word";
+  state.charIdx = 0;
 
-    // Reset CSS variable → Zen Focus recalculates without panel reservation.
-    document.documentElement.style.setProperty('--char-panel-height', '0px');
+  // Reset CSS variable → Zen Focus recalculates without panel reservation.
+  document.documentElement.style.setProperty("--char-panel-height", "0px");
 
-    // Hide and clear panel.
-    const panel = document.getElementById('char-panel');
-    panel.style.display = 'none';
-    panel.innerHTML = '';
+  // Hide and clear panel.
+  const panel = document.getElementById("char-panel");
+  panel.style.display = "none";
+  panel.innerHTML = "";
 
-    // Restore line opacity and word highlight.
-    _applyCharModeLineStyle(false);
-    window.updateZenFocus();
-    window.updateStatusBar();
+  // Restore line opacity and word highlight.
+  _applyCharModeLineStyle(false);
+  window.updateZenFocus();
+  window.updateStatusBar();
 
-    // Hide char position field in status bar (spec §15: visible in char mode only).
-    const charSpan = document.getElementById('status-char');
-    if (charSpan) charSpan.style.display = 'none';
+  // Hide char position field in status bar (spec §15: visible in char mode only).
+  const charSpan = document.getElementById("status-char");
+  if (charSpan) charSpan.style.display = "none";
 };
 
 // ---------------------------------------------------------------------------
@@ -101,37 +104,48 @@ window.exitCharacterMode = function exitCharacterMode() {
  * Called on entry and after every character navigation or diacritic mutation.
  */
 function _renderCharPanel() {
-    const state = window.editorState;
-    const word = state.lines[state.lineIdx]?.words[state.wordIdx];
-    if (!word) return;
+  const state = window.editorState;
+  const word = state.lines[state.lineIdx]?.words[state.wordIdx];
+  if (!word) return;
 
-    const panel = document.getElementById('char-panel');
-    panel.innerHTML = '';
+  const panel = document.getElementById("char-panel");
+  panel.innerHTML = "";
 
-    /*
-     * Tile container: dir="rtl" so clusters[0] renders at the right edge,
-     * matching the natural RTL reading order of the word.
-     * Each tile is a <span class="char-tile"> with an explicit data attribute
-     * for the cluster index.
-     */
-    const container = document.createElement('div');
-    container.className = 'char-tiles-container';
-    container.setAttribute('dir', 'rtl');
+  /*
+   * Tile container: dir="rtl" so clusters[0] renders at the right edge,
+   * matching the natural RTL reading order of the word.
+   * Each tile is a <span class="char-tile"> with an explicit data attribute
+   * for the cluster index.
+   */
+  const container = document.createElement("div");
+  container.className = "char-tiles-container";
+  container.setAttribute("dir", "rtl");
 
-    word.clusters.forEach((cluster, idx) => {
-        const tile = document.createElement('span');
-        tile.className = 'char-tile';
-        tile.dataset.charIdx = idx;
-        tile.textContent = cluster;
+  word.clusters.forEach((cluster, idx) => {
+    const tile = document.createElement("span");
+    tile.className = "char-tile";
+    tile.dataset.charIdx = idx;
+    tile.textContent = cluster;
 
-        if (idx === state.charIdx) {
-            tile.classList.add('char-tile-active');
-        }
+    if (idx === state.charIdx) {
+      tile.classList.add("char-tile-active");
+    }
 
-        container.appendChild(tile);
-    });
+    container.appendChild(tile);
+  });
 
-    panel.appendChild(container);
+  panel.appendChild(container);
+
+  // Fix 3 (Bug Report §Task 4.4): Soft rules are recomputed on every panel
+  // render (Plan OQ4: ephemeral). The soft-rules.js JSDoc documents this as
+  // the required call site; the call was previously missing.
+  if (typeof window.checkSoftRulesAfterWrite === "function") {
+    window.checkSoftRulesAfterWrite(
+      state.lineIdx,
+      state.wordIdx,
+      state.charIdx,
+    );
+  }
 }
 
 /**
@@ -139,17 +153,17 @@ function _renderCharPanel() {
  * The span is only visible while in Character Mode.
  */
 function _updateCharStatusBar() {
-    const state = window.editorState;
-    if (state.mode !== 'character') return;
+  const state = window.editorState;
+  if (state.mode !== "character") return;
 
-    const word = state.lines[state.lineIdx]?.words[state.wordIdx];
-    const total = word ? word.clusters.length : 0;
+  const word = state.lines[state.lineIdx]?.words[state.wordIdx];
+  const total = word ? word.clusters.length : 0;
 
-    const charSpan = document.getElementById('status-char');
-    if (charSpan) {
-        charSpan.textContent = `Char ${state.charIdx + 1} / ${total}`;
-        charSpan.style.display = 'inline';
-    }
+  const charSpan = document.getElementById("status-char");
+  if (charSpan) {
+    charSpan.textContent = `Char ${state.charIdx + 1} / ${total}`;
+    charSpan.style.display = "inline";
+  }
 }
 
 /**
@@ -160,18 +174,20 @@ function _updateCharStatusBar() {
  * @param {boolean} entering — true when entering, false when exiting
  */
 function _applyCharModeLineStyle(entering) {
-    const state = window.editorState;
-    const activeLineEl = document.getElementById(`line-${state.lineIdx}`);
-    if (!activeLineEl) return;
+  const state = window.editorState;
+  const activeLineEl = document.getElementById(`line-${state.lineIdx}`);
+  if (!activeLineEl) return;
 
-    if (entering) {
-        activeLineEl.classList.remove('zen-active');
-        activeLineEl.classList.add('zen-far');
-        // Also remove the word-active highlight — the panel is the focus now.
-        const wordEl = document.getElementById(`word-${state.lineIdx}-${state.wordIdx}`);
-        if (wordEl) wordEl.classList.remove('word-active');
-    }
-    // On exit, updateZenFocus() re-applies the correct classes.
+  if (entering) {
+    activeLineEl.classList.remove("zen-active");
+    activeLineEl.classList.add("zen-far");
+    // Also remove the word-active highlight — the panel is the focus now.
+    const wordEl = document.getElementById(
+      `word-${state.lineIdx}-${state.wordIdx}`,
+    );
+    if (wordEl) wordEl.classList.remove("word-active");
+  }
+  // On exit, updateZenFocus() re-applies the correct classes.
 }
 
 // ---------------------------------------------------------------------------
@@ -193,75 +209,75 @@ function _applyCharModeLineStyle(entering) {
  * @param {string} code — event.code (for keymap lookup)
  */
 window.handleCharacterMode = function handleCharacterMode(key, code) {
-    const state = window.editorState;
-    const word = state.lines[state.lineIdx]?.words[state.wordIdx];
-    if (!word) return;
+  const state = window.editorState;
+  const word = state.lines[state.lineIdx]?.words[state.wordIdx];
+  if (!word) return;
 
-    const clusters = word.clusters;
+  const clusters = word.clusters;
 
-    // ---- Escape: exit to Word Mode, keep word position (spec §5.2) ----
-    if (key === 'Escape') {
-        window.exitCharacterMode();
-        return;
+  // ---- Escape: exit to Word Mode, keep word position (spec §5.2) ----
+  if (key === "Escape") {
+    window.exitCharacterMode();
+    return;
+  }
+
+  // ---- ArrowLeft: next character in RTL reading order ----
+  //      In RTL, ← advances toward the start of the word (clusters[0] is rightmost).
+  //      charIdx 0 → rightmost; charIdx (length-1) → leftmost.
+  //      Pressing ← from charIdx 0 does NOT advance (we're at the right edge — no prev word there).
+  //      Wait, re-reading the spec §5.2:
+  //      "← past the last character → auto-exit and advance to next word"
+  //      "→ past the first character → auto-exit and move to previous word"
+  //      The "last character" in RTL reading order is the leftmost (highest index).
+  if (key === "ArrowLeft") {
+    const nextIdx = state.charIdx + 1;
+    if (nextIdx >= clusters.length) {
+      // Past the last character — auto-exit, advance to next word (ArrowLeft in Word Mode)
+      window.exitCharacterMode();
+      window.handleWordMode("ArrowLeft");
+    } else {
+      state.charIdx = nextIdx;
+      _renderCharPanel();
+      _updateCharStatusBar();
     }
+    return;
+  }
 
-    // ---- ArrowLeft: next character in RTL reading order ----
-    //      In RTL, ← advances toward the start of the word (clusters[0] is rightmost).
-    //      charIdx 0 → rightmost; charIdx (length-1) → leftmost.
-    //      Pressing ← from charIdx 0 does NOT advance (we're at the right edge — no prev word there).
-    //      Wait, re-reading the spec §5.2:
-    //      "← past the last character → auto-exit and advance to next word"
-    //      "→ past the first character → auto-exit and move to previous word"
-    //      The "last character" in RTL reading order is the leftmost (highest index).
-    if (key === 'ArrowLeft') {
-        const nextIdx = state.charIdx + 1;
-        if (nextIdx >= clusters.length) {
-            // Past the last character — auto-exit, advance to next word (ArrowLeft in Word Mode)
-            window.exitCharacterMode();
-            window.handleWordMode('ArrowLeft');
-        } else {
-            state.charIdx = nextIdx;
-            _renderCharPanel();
-            _updateCharStatusBar();
-        }
-        return;
+  // ---- ArrowRight: previous character ----
+  if (key === "ArrowRight") {
+    const prevIdx = state.charIdx - 1;
+    if (prevIdx < 0) {
+      // Past the first character — auto-exit, move to previous word (ArrowRight in Word Mode)
+      window.exitCharacterMode();
+      window.handleWordMode("ArrowRight");
+    } else {
+      state.charIdx = prevIdx;
+      _renderCharPanel();
+      _updateCharStatusBar();
     }
+    return;
+  }
 
-    // ---- ArrowRight: previous character ----
-    if (key === 'ArrowRight') {
-        const prevIdx = state.charIdx - 1;
-        if (prevIdx < 0) {
-            // Past the first character — auto-exit, move to previous word (ArrowRight in Word Mode)
-            window.exitCharacterMode();
-            window.handleWordMode('ArrowRight');
-        } else {
-            state.charIdx = prevIdx;
-            _renderCharPanel();
-            _updateCharStatusBar();
-        }
-        return;
-    }
+  // ---- Delete / Backspace: clear all diacritics from current cluster ----
+  if (key === "Delete" || key === "Backspace") {
+    _handleClearDiacritics();
+    return;
+  }
 
-    // ---- Delete / Backspace: clear all diacritics from current cluster ----
-    if (key === 'Delete' || key === 'Backspace') {
-        _handleClearDiacritics();
-        return;
-    }
+  // ---- Diacritic key: raw Unicode or keymap-mapped ----
+  let diacriticCp = null;
 
-    // ---- Diacritic key: raw Unicode or keymap-mapped ----
-    let diacriticCp = null;
+  if (/^[\u064B-\u0655\u0670]$/.test(key)) {
+    // Raw diacritic from Arabic keyboard layout
+    diacriticCp = key;
+  } else if (window.KEYMAP && window.KEYMAP[code]) {
+    // Custom mapping from keymap.json (Plan §Task 4.5)
+    diacriticCp = window.KEYMAP[code];
+  }
 
-    if (/^[\u064B-\u0655\u0670]$/.test(key)) {
-        // Raw diacritic from Arabic keyboard layout
-        diacriticCp = key;
-    } else if (window.KEYMAP && window.KEYMAP[code]) {
-        // Custom mapping from keymap.json (Plan §Task 4.5)
-        diacriticCp = window.KEYMAP[code];
-    }
-
-    if (diacriticCp) {
-        _handleDiacriticKey(diacriticCp);
-    }
+  if (diacriticCp) {
+    _handleDiacriticKey(diacriticCp);
+  }
 };
 
 // ---------------------------------------------------------------------------
@@ -278,75 +294,84 @@ window.handleCharacterMode = function handleCharacterMode(key, code) {
  * @param {string} incoming — diacritic code point
  */
 async function _handleDiacriticKey(incoming) {
-    const state = window.editorState;
-    const word = state.lines[state.lineIdx]?.words[state.wordIdx];
-    if (!word) return;
+  const state = window.editorState;
+  const word = state.lines[state.lineIdx]?.words[state.wordIdx];
+  if (!word) return;
 
-    const originalCluster = word.clusters[state.charIdx];
-    const newCluster = window.applyDiacritic(originalCluster, incoming);
+  const originalCluster = word.clusters[state.charIdx];
+  const newCluster = window.applyDiacritic(originalCluster, incoming);
 
-    if (newCluster === null) {
-        // Hard-blocked — flash the panel and do nothing else.
-        window.flashBlockedTile();
-        return;
-    }
+  if (newCluster === null) {
+    // Hard-blocked — flash the panel and do nothing else.
+    window.flashBlockedTile();
+    return;
+  }
 
-    // Optimistic in-memory update
-    word.clusters[state.charIdx] = newCluster;
+  // Optimistic in-memory update
+  word.clusters[state.charIdx] = newCluster;
 
-    // Write to disk — blocking error banner is handled inside API.writeChar
-    const success = await API.writeChar({
-        file_path:   state.filePath,
-        line_idx:    state.lineIdx,
-        word_idx:    state.wordIdx,
-        char_idx:    state.charIdx,
-        new_cluster: newCluster,
-    });
+  // Write to disk — blocking error banner is handled inside API.writeChar
+  const success = await API.writeChar({
+    file_path: state.filePath,
+    line_idx: state.lineIdx,
+    word_idx: state.wordIdx,
+    char_idx: state.charIdx,
+    new_cluster: newCluster,
+  });
 
-    if (!success) {
-        // Revert in-memory state so UI and file remain in sync
-        word.clusters[state.charIdx] = originalCluster;
-        _renderCharPanel();
-        return;
-    }
-
-    // Reflect the change in the word span in the document pane
-    _updateWordSpanText(state.lineIdx, state.wordIdx, word.clusters);
+  if (!success) {
+    // Revert in-memory state so UI and file remain in sync
+    word.clusters[state.charIdx] = originalCluster;
     _renderCharPanel();
+    return;
+  }
+
+  // Reflect the change in the word span in the document pane
+  _updateWordSpanText(state.lineIdx, state.wordIdx, word.clusters);
+  _renderCharPanel();
+
+  // Fix 1 (Bug Report §Task 4.1): Re-classify the affected word so amber
+  // highlights clear immediately and totalUndiacCount stays accurate.
+  // Must come AFTER _updateWordSpanText() so .letter-cluster spans exist.
+  window.reclassifyWord(state.lineIdx, state.wordIdx);
 }
 
 /**
  * Clear all diacritics from the current cluster and write to disk.
  */
 async function _handleClearDiacritics() {
-    const state = window.editorState;
-    const word = state.lines[state.lineIdx]?.words[state.wordIdx];
-    if (!word) return;
+  const state = window.editorState;
+  const word = state.lines[state.lineIdx]?.words[state.wordIdx];
+  if (!word) return;
 
-    const originalCluster = word.clusters[state.charIdx];
-    const newCluster = window.clearDiacritics(originalCluster);
+  const originalCluster = word.clusters[state.charIdx];
+  const newCluster = window.clearDiacritics(originalCluster);
 
-    // Nothing to do if the cluster is already bare
-    if (newCluster === originalCluster) return;
+  // Nothing to do if the cluster is already bare
+  if (newCluster === originalCluster) return;
 
-    word.clusters[state.charIdx] = newCluster;
+  word.clusters[state.charIdx] = newCluster;
 
-    const success = await API.writeChar({
-        file_path:   state.filePath,
-        line_idx:    state.lineIdx,
-        word_idx:    state.wordIdx,
-        char_idx:    state.charIdx,
-        new_cluster: newCluster,
-    });
+  const success = await API.writeChar({
+    file_path: state.filePath,
+    line_idx: state.lineIdx,
+    word_idx: state.wordIdx,
+    char_idx: state.charIdx,
+    new_cluster: newCluster,
+  });
 
-    if (!success) {
-        word.clusters[state.charIdx] = originalCluster;
-        _renderCharPanel();
-        return;
-    }
-
-    _updateWordSpanText(state.lineIdx, state.wordIdx, word.clusters);
+  if (!success) {
+    word.clusters[state.charIdx] = originalCluster;
     _renderCharPanel();
+    return;
+  }
+
+  _updateWordSpanText(state.lineIdx, state.wordIdx, word.clusters);
+  _renderCharPanel();
+
+  // Fix 1 (Bug Report §Task 4.1): same as _handleDiacriticKey — must
+  // reclassify after clearing so the amber dot and count update immediately.
+  window.reclassifyWord(state.lineIdx, state.wordIdx);
 }
 
 // ---------------------------------------------------------------------------
@@ -365,18 +390,25 @@ async function _handleClearDiacritics() {
  * @param {string[]} clusters — updated clusters array
  */
 function _updateWordSpanText(lineIdx, wordIdx, clusters) {
-    const wordEl = document.getElementById(`word-${lineIdx}-${wordIdx}`);
-    if (!wordEl) return;
+  const wordEl = document.getElementById(`word-${lineIdx}-${wordIdx}`);
+  if (!wordEl) return;
 
-    wordEl.innerHTML = '';
-    clusters.forEach(cluster => {
-        if (_PUNCT_RE.test(cluster)) {
-            const pSpan = document.createElement('span');
-            pSpan.className = 'punct';
-            pSpan.textContent = cluster;
-            wordEl.appendChild(pSpan);
-        } else {
-            wordEl.appendChild(document.createTextNode(cluster));
-        }
-    });
+  wordEl.innerHTML = "";
+
+  // Fix 2 (Bug Report §Task 4.1): Mirror the Phase 4 rendering pattern from
+  // renderer.js exactly. Every cluster must be a
+  //   <span class="letter-cluster [punct]" data-char-idx="N">
+  // element so that _classifyWord() in visual-hints.js can locate them via
+  // .querySelectorAll('.letter-cluster') and apply .amber-candidate.
+  // Using bare createTextNode() here caused _classifyWord() to find nothing
+  // and silently fail even when reclassifyWord() was called.
+  clusters.forEach((cluster, idx) => {
+    const clSpan = document.createElement("span");
+    clSpan.dataset.charIdx = idx;
+    clSpan.className = _PUNCT_RE.test(cluster)
+      ? "letter-cluster punct"
+      : "letter-cluster";
+    clSpan.textContent = cluster;
+    wordEl.appendChild(clSpan);
+  });
 }

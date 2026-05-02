@@ -1,0 +1,32 @@
+SOFT RULES MANUAL TEST FILE — Arabic Diacritics Editor Phase 4
+Open this file in the editor and follow each instruction below.
+In Character Mode, the flagged cluster should show an amber wavy underline.
+
+--- Rule 1: Tanwin on a non-final character ---
+Navigate to word 1, enter Character Mode, move to cluster 2 (ت).
+Navigate to word 2, enter Character Mode, move to cluster 2 (ل).
+كِتًابٌ  سَلًامٌ
+
+--- Rule 2: Group A diacritic on mid-position alef ---
+Navigate to word 1, enter Character Mode, move to cluster 2 (ا).
+Navigate to word 2, enter Character Mode, move to cluster 2 (ا).
+كَاَتِب  قَاَدِر
+
+--- Rule 3: Group A diacritic on alef of definite article ال ---
+Navigate to word 1, enter Character Mode, move to cluster 1 (ا).
+Navigate to word 2, enter Character Mode, move to cluster 1 (ا).
+اَلكِتَاب  اِلمَدرَسَة
+
+--- Rule 4: Any diacritic on word-final alef maqsura ---
+Navigate to word 1, enter Character Mode, move to the last cluster (ى).
+Navigate to word 2, enter Character Mode, move to the last cluster (ى).
+مُوسَىَ  عِيسَىٍ
+
+--- Rule 5: Definite article ال and tanwin coexistence ---
+Navigate to word 1, enter Character Mode; the tanwin-bearing cluster (ب) should warn.
+Navigate to word 2, enter Character Mode; the tanwin-bearing cluster (ل) should warn.
+الكِتَابٌ  الرَّجُلٌ
+
+--- Combined: multiple rules in one word ---
+This word violates Rules 3 and 5 simultaneously (diacritized alef of ال + tanwin).
+اَلرَّجُلٌ
