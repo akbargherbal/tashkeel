@@ -54,9 +54,41 @@ from diacritic_engine import write_character
 # Configuration
 # ---------------------------------------------------------------------------
 
-# Set TASHKEEL_ROOT to the root of your text files.
-# During development this defaults to the project directory (TASHKEEL/).
-ROOT_DIR: Path = Path(os.environ.get("TASHKEEL_ROOT", Path.cwd())).resolve()
+# config.json persists the last-used ROOT_DIR across server restarts.
+# Lives alongside app.py; written atomically by /api/set_folder; git-ignored.
+_CONFIG_PATH: Path = Path(__file__).parent / "config.json"
+
+
+def _load_root_dir() -> Path:
+    """Resolve ROOT_DIR with priority: config.json > TASHKEEL_ROOT env var > cwd.
+
+    Startup sequence (Feature Plan §5.1):
+      1. Read config.json alongside app.py — use root_dir if it is a valid directory.
+      2. Fall back to the TASHKEEL_ROOT environment variable.
+      3. Fall back to Path.cwd().
+    Failures at step 1 (missing file, malformed JSON, non-existent path) are
+    silent — startup never crashes due to a bad config.json.
+    """
+    # 1. config.json
+    if _CONFIG_PATH.exists():
+        try:
+            data = json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
+            candidate = Path(data["root_dir"]).resolve()
+            if candidate.is_dir():
+                return candidate
+        except (json.JSONDecodeError, KeyError, OSError):
+            pass
+    # 2. Environment variable
+    env_val = os.environ.get("TASHKEEL_ROOT")
+    if env_val:
+        candidate = Path(env_val).resolve()
+        if candidate.is_dir():
+            return candidate
+    # 3. cwd fallback
+    return Path.cwd().resolve()
+
+
+ROOT_DIR: Path = _load_root_dir()
 
 # keymap.json lives alongside app.py, not inside ROOT_DIR.
 KEYMAP_PATH: Path = Path(__file__).parent / "keymap.json"
@@ -143,10 +175,11 @@ def _write_cursor(original: Path, cursor: dict) -> None:
 # ---------------------------------------------------------------------------
 
 _ELIGIBLE_SUFFIXES: frozenset[str] = frozenset({".txt", ".md"})
-
-# The _diac_output subtree — resolved once at import time to avoid repeated
-# Path construction inside the hot rglob loop.
-_OUTPUT_DIR: Path = ROOT_DIR / "_diac_output"
+# _OUTPUT_DIR is intentionally NOT stored as a module-level constant.
+# scan_directory() recomputes it inline from its `root` parameter, and
+# api_mark_complete() uses ROOT_DIR / "_diac_output" directly.  Both
+# therefore stay correct when ROOT_DIR is updated at runtime by
+# /api/set_folder without any extra bookkeeping here.
 
 
 def get_file_status(original: Path) -> str:
@@ -551,11 +584,118 @@ def api_reset():
     return jsonify({"status": "untouched"})
 
 
+# --- Runtime Folder Selector (Session 10) -----------------------------------
+# Three routes that operate at the ROOT_DIR level, not below it.
+# They are intentionally exempt from _resolve_safe() — _resolve_safe()
+# validates paths relative to ROOT_DIR, but these routes are either
+# reading or setting ROOT_DIR itself.  See individual docstrings.
+
+@app.route("/api/current_folder")
+def api_current_folder():
+    """Return the currently active ROOT_DIR as a string.
+
+    Used by the frontend modal to pre-fill the path text input on open.
+    Exempt from _resolve_safe(): no user-supplied file path argument;
+    this route only reads the current ROOT_DIR and returns it.
+    """
+    return jsonify({"root_dir": str(ROOT_DIR)})
+
+
+@app.route("/api/browse")
+def api_browse():
+    """Open a native OS folder-picker dialog and return the chosen path.
+
+    Uses tkinter.filedialog.askdirectory() (stdlib, localhost-only app).
+    Falls back gracefully if tkinter or a display backend is unavailable.
+
+    Exempt from _resolve_safe(): this route returns a path for the user to
+    confirm in the modal text input; it does NOT set ROOT_DIR.
+    That is /api/set_folder's responsibility.
+
+    Response
+    --------
+    {"path": "<absolute path>"}      — user selected a folder
+    {"path": null}                   — user cancelled the dialog
+    {"error": "tkinter unavailable"} — tkinter or display backend missing
+    """
+    try:
+        import tkinter
+        import tkinter.filedialog
+        root_tk = tkinter.Tk()
+        root_tk.withdraw()
+        root_tk.attributes("-topmost", True)
+        chosen = tkinter.filedialog.askdirectory(
+            initialdir=str(ROOT_DIR),
+            title="Select project folder",
+        )
+        root_tk.destroy()
+        if chosen:
+            return jsonify({"path": chosen})
+        return jsonify({"path": None})
+    except Exception:
+        return jsonify({"error": "tkinter unavailable"})
+
+
+@app.route("/api/set_folder", methods=["POST"])
+def api_set_folder():
+    """Validate a folder path, set it as ROOT_DIR, persist, and return file list.
+
+    Exempt from _resolve_safe(): _resolve_safe() validates paths *relative to*
+    ROOT_DIR — but this route IS setting ROOT_DIR, so that guard is circular.
+    Validation is os.path.isdir() instead.  This exemption is intentional and
+    documented here per the Session 9 plan (§5.3) and RULES.md §3.8 footnote.
+
+    Request body
+    ------------
+    {"path": "<absolute or relative path>"}
+
+    Response (200)
+    --------------
+    {"ok": true, "files": [...], "root_dir": "<absolute path>"}
+
+    Response (400)
+    --------------
+    {"error": "path is required"}
+    {"error": "not a directory: <path>"}
+    """
+    global ROOT_DIR
+
+    data = request.get_json(silent=True) or {}
+    raw_path = data.get("path")
+    if not raw_path:
+        return jsonify({"error": "path is required"}), 400
+
+    candidate = Path(raw_path).resolve()
+    if not candidate.is_dir():
+        return jsonify({"error": f"not a directory: {raw_path}"}), 400
+
+    ROOT_DIR = candidate
+
+    # Persist to config.json — write-then-rename for atomicity (same pattern
+    # as _write_cursor).
+    try:
+        tmp = _CONFIG_PATH.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps({"root_dir": str(ROOT_DIR)}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        os.replace(tmp, _CONFIG_PATH)
+    except OSError as exc:
+        # Non-fatal: ROOT_DIR is updated in memory; persistence failure is
+        # logged but does not roll back the in-memory change.
+        app.logger.warning("Failed to persist config.json: %s", exc)
+
+    app.logger.info("ROOT_DIR updated to: %s", ROOT_DIR)
+    files = scan_directory(ROOT_DIR)
+    return jsonify({"ok": True, "files": files, "root_dir": str(ROOT_DIR)})
+
+
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     app.logger.info("ROOT_DIR: %s", ROOT_DIR)
+    app.logger.info("CONFIG:   %s", _CONFIG_PATH)
     app.logger.info("KEYMAP:   %s", KEYMAP_PATH)
     app.run(debug=True, host="127.0.0.1", port=5000)

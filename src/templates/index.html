@@ -103,6 +103,102 @@
         color: #555;
         border-bottom: 1px solid #242424;
         flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      #btn-open-folder {
+        font-size: 10px;
+        padding: 3px 7px;
+        border-radius: 3px;
+        border: 1px solid #2e2e2e;
+        background: #181818;
+        color: #555;
+        cursor: pointer;
+        text-transform: none;
+        letter-spacing: 0;
+        font-weight: 400;
+        transition: background 0.1s, color 0.1s;
+        flex-shrink: 0;
+      }
+      #btn-open-folder:hover {
+        background: #242424;
+        color: #aaa;
+      }
+
+      /* ------------------------------------------------------------------
+       Folder-selection modal (Session 10)
+       Opened by "Open Folder" button in sidebar header.
+       API.loadFolderModal() in api.js wires all interactions.
+       ------------------------------------------------------------------ */
+      #folder-modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        z-index: 800;
+        display: none;          /* shown by loadFolderModal() */
+        align-items: center;
+        justify-content: center;
+      }
+
+      #folder-modal-box {
+        background: #1e1e1e;
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 24px 28px;
+        width: 480px;
+        max-width: 92vw;
+      }
+
+      #folder-modal-box h2 {
+        color: #ccc;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin: 0 0 6px;
+      }
+
+      #folder-modal-box p {
+        color: #555;
+        font-size: 12px;
+        margin: 0 0 14px;
+      }
+
+      #folder-modal-row {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+
+      #folder-modal-input {
+        flex: 1;
+        background: #141414;
+        border: 1px solid #333;
+        border-radius: 4px;
+        color: #ddd;
+        font-size: 12px;
+        font-family: ui-monospace, monospace;
+        padding: 6px 10px;
+        outline: none;
+        direction: ltr;
+      }
+      #folder-modal-input:focus {
+        border-color: #555;
+      }
+
+      #folder-modal-error {
+        font-size: 11px;
+        color: #dc2626;
+        min-height: 16px;
+        margin-bottom: 14px;
+      }
+
+      #folder-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
       }
 
       #file-tree {
@@ -667,7 +763,10 @@
   <body>
     <!-- ===== SIDEBAR ===== -->
     <div id="sidebar">
-      <div id="sidebar-header">Files</div>
+      <div id="sidebar-header">
+        <span>Files</span>
+        <button id="btn-open-folder" title="Change project folder">Open Folder</button>
+      </div>
 
       <div id="file-tree">
         <!-- Populated by API.loadFileTree() on DOMContentLoaded -->
@@ -806,6 +905,34 @@
       </div>
     </div>
 
+    <!-- ===== FOLDER SELECTION MODAL (Session 10) ===== -->
+    <!--
+    Opened by #btn-open-folder in the sidebar header.
+    All interactions wired by API.loadFolderModal() on DOMContentLoaded.
+    Backdrop click, Cancel, and successful Load all close the modal.
+  -->
+    <div id="folder-modal" role="dialog" aria-modal="true" aria-label="Open Project Folder">
+      <div id="folder-modal-box">
+        <h2>Open Project Folder</h2>
+        <p>Enter the path to your Arabic text files, or click Browse…</p>
+        <div id="folder-modal-row">
+          <input
+            type="text"
+            id="folder-modal-input"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="C:\path\to\your\texts"
+          />
+          <button class="btn" id="folder-modal-browse">Browse…</button>
+        </div>
+        <div id="folder-modal-error" role="alert"></div>
+        <div id="folder-modal-actions">
+          <button class="btn" id="folder-modal-cancel">Cancel</button>
+          <button class="btn" id="folder-modal-load">Load</button>
+        </div>
+      </div>
+    </div>
+
     <!-- ===== SCRIPTS ===== -->
     <!-- Phase 1 -->
     <script src="/static/api.js"></script>
@@ -840,6 +967,9 @@
 
         /* Populate file tree */
         await API.loadFileTree();
+
+        /* Wire folder selection modal (Session 10) */
+        await API.loadFolderModal();
 
         /* Wire blocking error banner acknowledge button */
         document
