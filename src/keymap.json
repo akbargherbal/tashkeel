@@ -4,13 +4,19 @@
     "description": "Custom key bindings for the Arabic Diacritics Editor. Maps event.code values to Unicode diacritic characters. Edit this file to remap keys; restart Flask to reload. Remove a binding entirely to disable it."
   },
   "bindings": {
+    "Digit1": "\u064E",
+    "Digit2": "\u0650",
+    "Digit3": "\u064F",
+    "Digit7": "\u064B",
+    "Digit8": "\u064D",
+    "Digit9": "\u064C",
+    "Digit0": "\u0652",
     "Numpad1": "\u064E",
-    "Numpad2": "\u064B",
+    "Numpad2": "\u0650",
     "Numpad3": "\u064F",
-    "Numpad4": "\u064C",
-    "Numpad5": "\u0651",
-    "Numpad6": "\u0650",
-    "Numpad7": "\u064D",
+    "Numpad7": "\u064B",
+    "Numpad8": "\u064D",
+    "Numpad9": "\u064C",
     "Numpad0": "\u0652"
   }
 }
