@@ -29,9 +29,9 @@ Each concern has exactly one owner. Do not move logic between modules.
 | `static/api.js`              | All HTTP calls to the backend. The blocking error banner (`showBlockingError`). File tree rendering.                                                                                                                                                                                         |
 | `static/editor-state.js`     | The `editorState` object schema. No logic — state only.                                                                                                                                                                                                                                      |
 | `static/renderer.js`         | DOM rendering of the document pane. `window.segmentWord()`. `clampCursorToNavigable()`. `updateZenFocus()`.                                                                                                                                                                                  |
-| `static/navigation.js`       | Word Mode keyboard state machine. Tab jump (`_tabJumpToNextUndiac`). Debounced cursor saves.                                                                                                                                                                                                 |
+| `static/navigation.js`       | Word Mode keyboard state machine. Tab jump (`_tabJumpToNextUndiac`). Backward jump (`_tabJumpToPrevUndiac`). `ShiftTab` synthetic key (synthesised in `handleEditorKeystroke` from `event.shiftKey + Tab`). Space-as-Tab alias in `handleWordMode`. Debounced cursor saves.                  |
 | `static/diacritic-engine.js` | Hard rules, `parseCluster`, `canonicalCluster`, `applyDiacritic`, `clearDiacritics`, `flashBlockedTile`.                                                                                                                                                                                     |
-| `static/character-mode.js`   | Character Mode panel UI, inner-tier navigation, per-keystroke API write-through.                                                                                                                                                                                                             |
+| `static/character-mode.js`   | Character Mode panel UI, inner-tier navigation, per-keystroke API write-through. `shiftKey` parameter threading from `handleEditorKeystroke`. Shift+0 / Shift+Numpad0 → Shadda override (also handles Shift+Numpad0 NumLock edge case via `key === 'Insert'`). Space exit+jump handler. `_triggerLanguageWarning` (amber flash + 2-second non-blocking message). |
 | `static/visual-hints.js`     | Amber letter classification. `classifyAllWords()` on file open. `reclassifyWord()` after edits. `undiacCount` population.                                                                                                                                                                    |
 | `static/soft-rules.js`       | Ephemeral soft validation rules (5 rules per spec §8.3). Tooltip rendering on char tiles.                                                                                                                                                                                                    |
 | `static/completion.js`       | Completion banner. Shortcuts overlay. `?` key listener. Escape-to-close (overlay only).                                                                                                                                                                                                      |
@@ -161,6 +161,14 @@ sole call site for `checkSoftRulesAfterWrite()`. Do not cache soft rule results.
 does not interfere with Character Mode's Escape handler (exit to Word Mode). If
 you touch either Escape handler, verify the other still works.
 
+### 3.11 Space in Character Mode — no write call
+
+The Space branch in `handleCharacterMode` calls `exitCharacterMode()` then
+`_tabJumpToNextUndiac()`. It must never trigger `API.writeChar()` or any other
+backend write. If you modify this branch, verify in the Chrome Network tab that
+no `POST /api/write_char` fires on a Space press while in Character Mode. This
+is an explicit stop condition in the Phase 1 plan and must remain enforced.
+
 ---
 
 ## 4. What Requires Extra Thought Before Changing
@@ -174,6 +182,7 @@ you touch either Escape handler, verify the other still works.
 | Add a new Flask route                                                         | §3.8 — `_resolve_safe()` is mandatory                                                                                             |
 | Change how lines are split or words are indexed                               | §3.5 — must be mirrored in both Python and JS                                                                                     |
 | Change Zen Focus / line highlighting                                          | §1 (`renderer.js`) — `updateZenFocus()` is authoritative; `_applyCharModeLineStyle()` in `character-mode.js` must call it on exit |
+| Modify the Space or ShiftTab branches in `handleWordMode` or `handleCharacterMode` | §3.11 — Space in Character Mode must never trigger `API.writeChar()`; verify in Network tab after any change |
 
 ---
 
