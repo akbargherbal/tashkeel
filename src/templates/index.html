@@ -119,7 +119,9 @@
         text-transform: none;
         letter-spacing: 0;
         font-weight: 400;
-        transition: background 0.1s, color 0.1s;
+        transition:
+          background 0.1s,
+          color 0.1s;
         flex-shrink: 0;
       }
       #btn-open-folder:hover {
@@ -137,7 +139,7 @@
         inset: 0;
         background: rgba(0, 0, 0, 0.72);
         z-index: 800;
-        display: none;          /* shown by loadFolderModal() */
+        display: none; /* shown by loadFolderModal() */
         align-items: center;
         justify-content: center;
       }
@@ -765,7 +767,9 @@
     <div id="sidebar">
       <div id="sidebar-header">
         <span>Files</span>
-        <button id="btn-open-folder" title="Change project folder">Open Folder</button>
+        <button id="btn-open-folder" title="Change project folder">
+          Open Folder
+        </button>
       </div>
 
       <div id="file-tree">
@@ -857,51 +861,231 @@
     Escape also closes it.
     Content mirrors spec §14 / Plan §Task 5.5.
   -->
-    <div id="shortcuts-overlay" role="dialog" aria-modal="true" aria-label="Keyboard Shortcuts">
+    <div
+      id="shortcuts-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Keyboard Shortcuts"
+    >
       <div id="shortcuts-box">
-        <button id="shortcuts-close" aria-label="Close" onclick="window.toggleShortcutsOverlay()">✕</button>
+        <button
+          id="shortcuts-close"
+          aria-label="Close"
+          onclick="window.toggleShortcutsOverlay()"
+        >
+          ✕
+        </button>
         <h2>Keyboard Shortcuts</h2>
 
         <div class="shortcut-section">Word Mode</div>
         <table>
           <tbody>
-            <tr><td>← Left Arrow</td><td>Next word (RTL direction)</td></tr>
-            <tr><td>→ Right Arrow</td><td>Previous word</td></tr>
-            <tr><td>↓ Down Arrow</td><td>Same word position, next line</td></tr>
-            <tr><td>↑ Up Arrow</td><td>Same word position, previous line</td></tr>
-            <tr><td>Enter</td><td>Enter Character Mode for current word</td></tr>
-            <tr><td>Tab</td><td>Jump to next undiacritized word (wraps)</td></tr>
+            <tr>
+              <td>← Left Arrow</td>
+              <td>Next word (RTL direction)</td>
+            </tr>
+            <tr>
+              <td>→ Right Arrow</td>
+              <td>Previous word</td>
+            </tr>
+            <tr>
+              <td>↓ Down Arrow</td>
+              <td>Same word position, next line</td>
+            </tr>
+            <tr>
+              <td>↑ Up Arrow</td>
+              <td>Same word position, previous line</td>
+            </tr>
+            <tr>
+              <td>Enter</td>
+              <td>Enter Character Mode for current word</td>
+            </tr>
+            <tr>
+              <td>Tab</td>
+              <td>Jump to next undiacritized word (wraps)</td>
+            </tr>
           </tbody>
         </table>
 
         <div class="shortcut-section">Character Mode</div>
         <table>
           <tbody>
-            <tr><td>← Left Arrow</td><td>Next character (RTL); auto-exits at word boundary</td></tr>
-            <tr><td>→ Right Arrow</td><td>Previous character; auto-exits at word boundary</td></tr>
-            <tr><td>Escape</td><td>Exit to Word Mode</td></tr>
-            <tr><td>Diacritic key</td><td>Apply / replace diacritic on current character</td></tr>
-            <tr><td>Same diacritic key again</td><td>Toggle off (remove) diacritic</td></tr>
-            <tr><td>Delete / Backspace</td><td>Clear all diacritics from current character</td></tr>
+            <tr>
+              <td>← Left Arrow</td>
+              <td>Next character (RTL); auto-exits at word boundary</td>
+            </tr>
+            <tr>
+              <td>→ Right Arrow</td>
+              <td>Previous character; auto-exits at word boundary</td>
+            </tr>
+            <tr>
+              <td>Escape</td>
+              <td>Exit to Word Mode</td>
+            </tr>
+            <tr>
+              <td>Diacritic key</td>
+              <td>Apply / replace diacritic on current character</td>
+            </tr>
+            <tr>
+              <td>Same diacritic key again</td>
+              <td>Toggle off (remove) diacritic</td>
+            </tr>
+            <tr>
+              <td>Delete / Backspace</td>
+              <td>Clear all diacritics from current character</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="shortcut-section">Word Mode</div>
+        <table>
+          <tbody>
+            <tr>
+              <td>← Left Arrow</td>
+              <td>Next word (RTL direction)</td>
+            </tr>
+            <tr>
+              <td>→ Right Arrow</td>
+              <td>Previous word</td>
+            </tr>
+            <tr>
+              <td>↓ Down Arrow</td>
+              <td>Same word position, next line</td>
+            </tr>
+            <tr>
+              <td>↑ Up Arrow</td>
+              <td>Same word position, previous line</td>
+            </tr>
+            <tr>
+              <td>Enter</td>
+              <td>Enter Character Mode for current word</td>
+            </tr>
+            <tr>
+              <td>Tab</td>
+              <td>Jump to next undiacritized word (wraps)</td>
+            </tr>
+            <tr>
+              <td>Space</td>
+              <td>Jump to next undiacritized word (same as Tab)</td>
+            </tr>
+            <tr>
+              <td>Shift+Tab</td>
+              <td>Jump to previous undiacritized word</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="shortcut-section">Character Mode</div>
+        <table>
+          <tbody>
+            <tr>
+              <td>← Left Arrow</td>
+              <td>Next character (RTL); auto-exits at word boundary</td>
+            </tr>
+            <tr>
+              <td>→ Right Arrow</td>
+              <td>Previous character; auto-exits at word boundary</td>
+            </tr>
+            <tr>
+              <td>Escape</td>
+              <td>Exit to Word Mode</td>
+            </tr>
+            <tr>
+              <td>Space</td>
+              <td>Exit Character Mode + jump to next undiacritized word</td>
+            </tr>
+            <tr>
+              <td>Diacritic key</td>
+              <td>Apply / replace diacritic on current character</td>
+            </tr>
+            <tr>
+              <td>Same diacritic key again</td>
+              <td>Toggle off (remove) diacritic</td>
+            </tr>
+            <tr>
+              <td>Delete / Backspace</td>
+              <td>Clear all diacritics from current character</td>
+            </tr>
+          </tbody>
+        </table>
+        <p
+          style="
+            color: #777;
+            font-size: 11px;
+            margin-top: 8px;
+            margin-bottom: 16px;
+          "
+        >
+          To correct a character in the same word: <strong>→</strong> steps
+          back. To return to a previous word: <strong>Escape</strong> →
+          <strong>→</strong> → <strong>Enter</strong>.
+        </p>
+
+        <div class="shortcut-section">Diacritic Keys</div>
+        <table>
+          <tbody>
+            <tr>
+              <td>1 / Numpad 1</td>
+              <td>Fatha</td>
+            </tr>
+            <tr>
+              <td>2 / Numpad 2</td>
+              <td>Kasra</td>
+            </tr>
+            <tr>
+              <td>3 / Numpad 3</td>
+              <td>Damma</td>
+            </tr>
+            <tr>
+              <td>7 / Numpad 7</td>
+              <td>Tanween Fatha</td>
+            </tr>
+            <tr>
+              <td>8 / Numpad 8</td>
+              <td>Tanween Kasra</td>
+            </tr>
+            <tr>
+              <td>9 / Numpad 9</td>
+              <td>Tanween Dhamma</td>
+            </tr>
+            <tr>
+              <td>0 / Numpad 0</td>
+              <td>Sukoon</td>
+            </tr>
+            <tr>
+              <td>Shift+0 / Shift+Numpad 0</td>
+              <td>Shadda</td>
+            </tr>
           </tbody>
         </table>
 
         <div class="shortcut-section">General</div>
         <table>
           <tbody>
-            <tr><td>?</td><td>Show / hide this reference</td></tr>
+            <tr>
+              <td>?</td>
+              <td>Show / hide this reference</td>
+            </tr>
           </tbody>
         </table>
 
         <div class="shortcut-section">Mouse-only Actions</div>
         <table>
           <tbody>
-            <tr><td>Mark Complete</td><td>Copy to _diac_output/ and enter read-only mode</td></tr>
-            <tr><td>Reset</td><td>Delete working copy and cursor progress</td></tr>
+            <tr>
+              <td>Mark Complete</td>
+              <td>Copy to _diac_output/ and enter read-only mode</td>
+            </tr>
+            <tr>
+              <td>Reset</td>
+              <td>Delete working copy and cursor progress</td>
+            </tr>
           </tbody>
         </table>
 
-        <p id="shortcuts-hint">Press <strong>?</strong> or <strong>Escape</strong> to close</p>
+        <p id="shortcuts-hint">
+          Press <strong>?</strong> or <strong>Escape</strong> to close
+        </p>
       </div>
     </div>
 
@@ -911,7 +1095,12 @@
     All interactions wired by API.loadFolderModal() on DOMContentLoaded.
     Backdrop click, Cancel, and successful Load all close the modal.
   -->
-    <div id="folder-modal" role="dialog" aria-modal="true" aria-label="Open Project Folder">
+    <div
+      id="folder-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Open Project Folder"
+    >
       <div id="folder-modal-box">
         <h2>Open Project Folder</h2>
         <p>Enter the path to your Arabic text files, or click Browse…</p>
