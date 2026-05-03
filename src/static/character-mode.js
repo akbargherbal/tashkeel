@@ -14,7 +14,7 @@
  * Exports on window:
  *   window.enterCharacterMode()
  *   window.exitCharacterMode()
- *   window.handleCharacterMode(key, code)
+ *   window.handleCharacterMode(key, code, shiftKey)
  *   window.CHAR_PANEL_HEIGHT  (px integer — read by Zen Focus calc)
  */
 
@@ -102,22 +102,6 @@ window.exitCharacterMode = function exitCharacterMode() {
   const charSpan = document.getElementById("status-char");
   if (charSpan) charSpan.style.display = "none";
 };
-
-// ---------------------------------------------------------------------------
-// Panel rendering
-// ---------------------------------------------------------------------------
-
-// Hide and clear panel.
-const panel = document.getElementById("char-panel");
-panel.style.display = "none";
-panel.innerHTML = "";
-
-// Dismiss language warning immediately on exit — don't leave it dangling.
-clearTimeout(_langWarningTimer);
-if (_langWarningEl) _langWarningEl.style.display = "none";
-
-// Restore line opacity and word highlight.
-_applyCharModeLineStyle(false);
 
 // ---------------------------------------------------------------------------
 // Panel rendering
@@ -217,6 +201,7 @@ function _triggerLanguageWarning() {
     if (_langWarningEl) _langWarningEl.style.display = "none";
   }, 2000);
 }
+
 /**
  * Apply or remove Character Mode visual treatment on the active line.
  * When entering: the line text dims to zen-far so the char panel is the focus.
@@ -256,8 +241,9 @@ function _applyCharModeLineStyle(entering) {
  *   Delete/Backspace → clearDiacritics on current cluster
  *   Diacritic key (raw or keymap-mapped) → applyDiacritic on current cluster
  *
- * @param {string} key  — event.key
- * @param {string} code — event.code (for keymap lookup)
+ * @param {string}  key      — event.key
+ * @param {string}  code     — event.code (for keymap lookup)
+ * @param {boolean} shiftKey — event.shiftKey (for Shift+0 / Shift+Numpad0 → Shadda)
  */
 
 window.handleCharacterMode = function handleCharacterMode(
