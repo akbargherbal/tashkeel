@@ -181,6 +181,9 @@ server after editing `keymap.json`.
 | `1` / `Numpad 1` | Fatha (U+064E) |
 | `2` / `Numpad 2` | Kasra (U+0650) |
 | `3` / `Numpad 3` | Damma (U+064F) |
+| `4` / `Numpad 4` | Shadda + Fatha (U+0651 + U+064E) |
+| `5` / `Numpad 5` | Shadda + Kasra (U+0651 + U+0650) |
+| `6` / `Numpad 6` | Shadda + Damma (U+0651 + U+064F) |
 | `7` / `Numpad 7` | Tanween Fatha (U+064B) |
 | `8` / `Numpad 8` | Tanween Kasra (U+064D) |
 | `9` / `Numpad 9` | Tanween Dhamma (U+064C) |
@@ -188,8 +191,7 @@ server after editing `keymap.json`.
 
 **Note:** `Shift+0` and `Shift+Numpad0` are hardcoded to Shadda (U+0651) in
 the application and cannot be remapped via `keymap.json`. Keys 4, 5, and 6
-are intentionally unbound (reserved for a future Phase 2 compound-key
-feature). Pressing them in Character Mode has no effect.
+apply Shadda + Fatha / Kasra / Damma as a single keystroke (compound keys).
 
 ---
 

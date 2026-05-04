@@ -328,8 +328,15 @@ window.handleCharacterMode = function handleCharacterMode(
     // Raw diacritic from Arabic keyboard layout
     diacriticCp = key;
   } else if (window.KEYMAP && window.KEYMAP[code]) {
+    const val = window.KEYMAP[code];
+    if (Array.isArray(val)) {
+      // Compound key (e.g. Digit4/5/6 = Shadda + vowel).
+      // Two sequential applyDiacritic calls → one API write (PLAN §Compound Keys).
+      _handleCompoundDiacriticKey(val);
+      return;
+    }
     // Custom mapping from keymap.json (Plan §Task 4.5)
-    diacriticCp = window.KEYMAP[code];
+    diacriticCp = val;
   }
 
   // Shift+0 and Shift+Numpad0 → Shadda (U+0651).
@@ -392,6 +399,79 @@ function _smartFlowAdvance() {
     state.charIdx = nextIdx;
     _renderCharPanel();
     _updateCharStatusBar();
+  }
+}
+
+/**
+ * Apply a compound diacritic (two code points, e.g. Shadda + vowel) to the
+ * current cluster and write to disk in ONE API call.
+ *
+ * Design (PLAN §Compound Keys locked decision):
+ *   Build the final cluster by calling applyDiacritic() twice in sequence on
+ *   the in-memory cluster — first cp is Shadda (Group B, stacks), second is
+ *   the vowel (Group A, replaces any existing Group A). If either step returns
+ *   null (hard-blocked), flash and abort with no write.
+ *
+ * One API write with the final cluster — not two. Smart flow auto-advance
+ * applies to the final cluster, identical to _handleDiacriticKey behaviour.
+ *
+ * Called ONLY from the compound-key detection block in handleCharacterMode.
+ * Preserves all RULES.md §2 invariants:
+ *   _updateWordSpanText → reclassifyWord ordering preserved.
+ *   Exactly one _renderCharPanel fires per keystroke on either path.
+ *   _smartFlowAdvance called only from this success path.
+ *
+ * @param {string[]} codepoints — array of diacritic code points to apply in order
+ */
+async function _handleCompoundDiacriticKey(codepoints) {
+  const state = window.editorState;
+  // Read-only guard — mirrors _handleDiacriticKey.
+  if (state.status === "complete") return;
+  const word = state.lines[state.lineIdx]?.words[state.wordIdx];
+  if (!word) return;
+
+  const originalCluster = word.clusters[state.charIdx];
+
+  // Build final cluster via two sequential applyDiacritic calls.
+  // applyDiacritic runs hardRulesCheck internally; null = hard-blocked.
+  let newCluster = originalCluster;
+  for (const cp of codepoints) {
+    newCluster = window.applyDiacritic(newCluster, cp);
+    if (newCluster === null) {
+      window.flashBlockedTile();
+      return;
+    }
+  }
+
+  // Optimistic in-memory update
+  word.clusters[state.charIdx] = newCluster;
+
+  // One API write with the final compound cluster
+  const success = await API.writeChar({
+    file_path: state.filePath,
+    line_idx: state.lineIdx,
+    word_idx: state.wordIdx,
+    char_idx: state.charIdx,
+    new_cluster: newCluster,
+  });
+
+  if (!success) {
+    // Revert in-memory state so UI and file remain in sync
+    word.clusters[state.charIdx] = originalCluster;
+    _renderCharPanel();
+    return;
+  }
+
+  // Success path — same ordering as _handleDiacriticKey (RULES.md §2)
+  _updateWordSpanText(state.lineIdx, state.wordIdx, word.clusters);
+  window.reclassifyWord(state.lineIdx, state.wordIdx);
+
+  // Shadda + vowel is always phonologically complete (Group A present).
+  // _smartFlowAdvance / _renderCharPanel: exactly one fires per keystroke.
+  if (window.isClusterComplete(newCluster)) {
+    _smartFlowAdvance();
+  } else {
+    _renderCharPanel();
   }
 }
 

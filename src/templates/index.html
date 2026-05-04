@@ -481,23 +481,33 @@
         opacity: 1;
       }
 
-      /* Help icon button in status bar — triggers shortcuts overlay */
+      /* Help icon — bevelled blue circle in sidebar actions */
       #btn-help {
-        background: none;
-        border: 1px solid #333;
-        border-radius: 3px;
-        color: #555;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: linear-gradient(160deg, #3b82f6 0%, #1e40af 100%);
+        border: 1.5px solid rgba(255, 255, 255, 0.35); /* concentric white ring */
+        color: #fff;
         font-size: 12px;
-        font-family: ui-monospace, monospace;
+        font-weight: 700;
+        line-height: 1;
         cursor: pointer;
-        padding: 1px 6px;
-        line-height: 1.4;
-        transition: color 0.1s, border-color 0.1s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         flex-shrink: 0;
+        margin-left: auto;
+        box-shadow:
+          0 2px 4px rgba(0, 0, 0, 0.45),
+          inset 0 1px 0 rgba(255, 255, 255, 0.25); /* top bevel highlight */
+        transition: filter 0.15s, box-shadow 0.15s;
       }
       #btn-help:hover {
-        color: #aaa;
-        border-color: #555;
+        filter: brightness(1.15);
+        box-shadow:
+          0 3px 8px rgba(30, 64, 175, 0.55),
+          inset 0 1px 0 rgba(255, 255, 255, 0.25);
       }
 
       /* ------------------------------------------------------------------
@@ -804,6 +814,13 @@
           Mark Complete
         </button>
         <button class="btn" id="btn-reset" disabled>Reset</button>
+        <button
+          id="btn-help"
+          tabindex="-1"
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+          onclick="window.toggleShortcutsOverlay()"
+        >?</button>
       </div>
     </div>
 
@@ -853,13 +870,6 @@
       <span id="status-char"></span>
       <!-- only shown in Character Mode -->
       <span id="status-autosave">Auto-saved ✓</span>
-      <button
-        id="btn-help"
-        tabindex="-1"
-        aria-label="Keyboard shortcuts"
-        title="Keyboard shortcuts (?)"
-        onclick="window.toggleShortcutsOverlay()"
-      >?</button>
     </div>
 
     <!-- ===== BLOCKING ERROR BANNER ===== -->
@@ -1004,6 +1014,18 @@
             <tr>
               <td>3 / Numpad 3</td>
               <td>Damma</td>
+            </tr>
+            <tr>
+              <td>4 / Numpad 4</td>
+              <td>Shadda + Fatha</td>
+            </tr>
+            <tr>
+              <td>5 / Numpad 5</td>
+              <td>Shadda + Kasra</td>
+            </tr>
+            <tr>
+              <td>6 / Numpad 6</td>
+              <td>Shadda + Damma</td>
             </tr>
             <tr>
               <td>7 / Numpad 7</td>
