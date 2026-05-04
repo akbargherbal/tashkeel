@@ -67,7 +67,7 @@ TASHKEEL_ROOT=/home/you/manuscripts python app.py
 | `↑` Up Arrow | Same word position, previous line |
 | `Enter` | Enter Character Mode for current word |
 | `Tab` | Jump to next undiacritized word (wraps at end of document) |
-| `Space` | Jump to next undiacritized word (same as Tab) |
+| `Space` | Jump to next undiacritized word + enter Character Mode |
 | `Shift+Tab` | Jump to previous undiacritized word (wraps at start of document) |
 | `?` | Show / hide keyboard shortcuts overlay |
 
@@ -78,10 +78,12 @@ TASHKEEL_ROOT=/home/you/manuscripts python app.py
 | `←` Left Arrow | Next character (RTL); auto-exits at word boundary |
 | `→` Right Arrow | Previous character; auto-exits at word boundary |
 | `Escape` | Exit to Word Mode |
-| Diacritic key | Apply / replace diacritic on current character |
+| Diacritic key | Apply / replace diacritic on current character; auto-advances to next character when cluster is complete |
 | Same diacritic key again | Toggle off (remove) diacritic |
 | `Delete` / `Backspace` | Clear all diacritics from current character |
 | `Space` | Exit Character Mode + jump to next undiacritized word |
+
+**Mis-press correction:** If smart-flow auto-advanced past a wrong diacritic, press `→` once to step back to the character, then apply the correct diacritic — auto-advance resumes. To return to a previous word entirely: `Escape` → `→` → `Enter`.
 
 ### Mouse-only Actions (intentional — prevents accidents)
 

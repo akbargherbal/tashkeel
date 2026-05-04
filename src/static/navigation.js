@@ -143,7 +143,9 @@ window.handleWordMode = function (key) {
       moved = true;
     }
   } else if (key === " ") {
-    // Phase 1 Ergonomics: Space acts as single-key advance (same as Tab)
+    // Phase 2 Full Flow: Space jumps to next undiacritized word AND enters
+    // Character Mode. The jump fires here; enterCharacterMode() fires below
+    // (after updateZenFocus) so _applyCharModeLineStyle wins over zen classes.
     if (_tabJumpToNextUndiac()) {
       moved = true;
     }

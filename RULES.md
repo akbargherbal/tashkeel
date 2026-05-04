@@ -29,12 +29,12 @@ Each concern has exactly one owner. Do not move logic between modules.
 | `static/api.js`              | All HTTP calls to the backend. The blocking error banner (`showBlockingError`). File tree rendering.                                                                                                                                                                                         |
 | `static/editor-state.js`     | The `editorState` object schema. No logic — state only.                                                                                                                                                                                                                                      |
 | `static/renderer.js`         | DOM rendering of the document pane. `window.segmentWord()`. `clampCursorToNavigable()`. `updateZenFocus()`.                                                                                                                                                                                  |
-| `static/navigation.js`       | Word Mode keyboard state machine. Tab jump (`_tabJumpToNextUndiac`). Backward jump (`_tabJumpToPrevUndiac`). `ShiftTab` synthetic key (synthesised in `handleEditorKeystroke` from `event.shiftKey + Tab`). Space-as-Tab alias in `handleWordMode`. Debounced cursor saves.                  |
-| `static/diacritic-engine.js` | Hard rules, `parseCluster`, `canonicalCluster`, `applyDiacritic`, `clearDiacritics`, `flashBlockedTile`.                                                                                                                                                                                     |
-| `static/character-mode.js`   | Character Mode panel UI, inner-tier navigation, per-keystroke API write-through. `shiftKey` parameter threading from `handleEditorKeystroke`. Shift+0 / Shift+Numpad0 → Shadda override (also handles Shift+Numpad0 NumLock edge case via `key === 'Insert'`). Space exit+jump handler. `_triggerLanguageWarning` (amber flash + 2-second non-blocking message). |
+| `static/navigation.js`       | Word Mode keyboard state machine. Tab jump (`_tabJumpToNextUndiac`). Backward jump (`_tabJumpToPrevUndiac`). `ShiftTab` synthetic key (synthesised in `handleEditorKeystroke` from `event.shiftKey + Tab`). Full Flow Space in `handleWordMode`: `_tabJumpToNextUndiac()` followed by `enterCharacterMode()` (fired after `updateZenFocus()` so `_applyCharModeLineStyle` wins over zen class assignments). Debounced cursor saves.                  |
+| `static/diacritic-engine.js` | Hard rules, `parseCluster`, `canonicalCluster`, `applyDiacritic`, `clearDiacritics`, `flashBlockedTile`, `isClusterComplete`.                                                                                                                                                                                     |
+| `static/character-mode.js`   | Character Mode panel UI, inner-tier navigation, per-keystroke API write-through. `shiftKey` parameter threading from `handleEditorKeystroke`. Shift+0 / Shift+Numpad0 → Shadda override (also handles Shift+Numpad0 NumLock edge case via `key === 'Insert'`). Space exit+jump handler. `_triggerLanguageWarning` (amber flash + 2-second non-blocking message). `_smartFlowAdvance()` (auto-advance after a phonologically complete cluster — called only from `_handleDiacriticKey` success path; see §2). `_handleDiacriticKey` success path order: `_updateWordSpanText` → `reclassifyWord` → `isClusterComplete` check → `_smartFlowAdvance` or `_renderCharPanel` (exactly one `_renderCharPanel` fires per keystroke on either path). |
 | `static/visual-hints.js`     | Amber letter classification. `classifyAllWords()` on file open. `reclassifyWord()` after edits. `undiacCount` population.                                                                                                                                                                    |
 | `static/soft-rules.js`       | Ephemeral soft validation rules (5 rules per spec §8.3). Tooltip rendering on char tiles.                                                                                                                                                                                                    |
-| `static/completion.js`       | Completion banner. Shortcuts overlay. `?` key listener. Escape-to-close (overlay only).                                                                                                                                                                                                      |
+| `static/completion.js`       | Completion banner. Shortcuts overlay. `?` key listener catches both U+003F (Latin `?`) and U+061F (Arabic `؟`) — see §3.10. Escape-to-close (overlay only).                                                                                                                                                                                                      |
 | `templates/index.html`       | App shell, CSS, script load order, Mark Complete handler, Reset handler.                                                                                                                                                                                                                     |
 
 ---
@@ -64,6 +64,10 @@ The most complex file in the codebase. Three rules that must not be violated:
   before. The DOM spans must exist before `_classifyWord()` queries them.
 - `checkSoftRulesAfterWrite()` is called at the end of `_renderCharPanel()` —
   this is the sole call site. Do not add a second call site elsewhere.
+- `_smartFlowAdvance()` must be called **only** from `_handleDiacriticKey`'s
+  success path (after `isClusterComplete` returns true). Calling it from any
+  other site produces a double `_renderCharPanel` call, violating the
+  `checkSoftRulesAfterWrite` sole-call-site invariant above.
 
 ### `renderer.js`
 
@@ -160,6 +164,12 @@ sole call site for `checkSoftRulesAfterWrite()`. Do not cache soft rule results.
 `completion.js` captures Escape only when the shortcuts overlay is visible. It
 does not interfere with Character Mode's Escape handler (exit to Word Mode). If
 you touch either Escape handler, verify the other still works.
+
+The `?` key listener catches both `event.key === "?"` (Latin, U+003F) and
+`event.key === "\u061F"` (Arabic `؟`, U+061F). This handles both Latin and
+Arabic keyboard layouts on the same physical Shift+/ key. Do not replace this
+union condition with an `event.code`-based check — that would hard-code a
+physical key layout assumption and break the Arabic keyboard path.
 
 ### 3.11 Space in Character Mode — no write call
 
