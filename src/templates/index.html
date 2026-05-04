@@ -481,6 +481,25 @@
         opacity: 1;
       }
 
+      /* Help icon button in status bar — triggers shortcuts overlay */
+      #btn-help {
+        background: none;
+        border: 1px solid #333;
+        border-radius: 3px;
+        color: #555;
+        font-size: 12px;
+        font-family: ui-monospace, monospace;
+        cursor: pointer;
+        padding: 1px 6px;
+        line-height: 1.4;
+        transition: color 0.1s, border-color 0.1s;
+        flex-shrink: 0;
+      }
+      #btn-help:hover {
+        color: #aaa;
+        border-color: #555;
+      }
+
       /* ------------------------------------------------------------------
        Conflict warning banner (non-blocking — spec §2.5)
        Phase 2 shows/hides this via JS.
@@ -834,6 +853,13 @@
       <span id="status-char"></span>
       <!-- only shown in Character Mode -->
       <span id="status-autosave">Auto-saved ✓</span>
+      <button
+        id="btn-help"
+        tabindex="-1"
+        aria-label="Keyboard shortcuts"
+        title="Keyboard shortcuts (?)"
+        onclick="window.toggleShortcutsOverlay()"
+      >?</button>
     </div>
 
     <!-- ===== BLOCKING ERROR BANNER ===== -->
