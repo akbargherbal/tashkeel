@@ -67,6 +67,8 @@ TASHKEEL_ROOT=/home/you/manuscripts python app.py
 | `↑` Up Arrow | Same word position, previous line |
 | `Enter` | Enter Character Mode for current word |
 | `Tab` | Jump to next undiacritized word (wraps at end of document) |
+| `Space` | Jump to next undiacritized word + enter Character Mode |
+| `Shift+Tab` | Jump to previous undiacritized word (wraps at start of document) |
 | `?` | Show / hide keyboard shortcuts overlay |
 
 ### Character Mode
@@ -76,9 +78,12 @@ TASHKEEL_ROOT=/home/you/manuscripts python app.py
 | `←` Left Arrow | Next character (RTL); auto-exits at word boundary |
 | `→` Right Arrow | Previous character; auto-exits at word boundary |
 | `Escape` | Exit to Word Mode |
-| Diacritic key | Apply / replace diacritic on current character |
+| Diacritic key | Apply / replace diacritic on current character; auto-advances to next character when cluster is complete |
 | Same diacritic key again | Toggle off (remove) diacritic |
 | `Delete` / `Backspace` | Clear all diacritics from current character |
+| `Space` | Exit Character Mode + jump to next undiacritized word |
+
+**Mis-press correction:** If smart-flow auto-advanced past a wrong diacritic, press `→` once to step back to the character, then apply the correct diacritic — auto-advance resumes. To return to a previous word entirely: `Escape` → `→` → `Enter`.
 
 ### Mouse-only Actions (intentional — prevents accidents)
 
@@ -146,18 +151,45 @@ your OS Arabic layout assigns diacritics to inconvenient positions:
 ```json
 {
   "bindings": {
+    "Digit1":  "\u064E",
+    "Digit2":  "\u0650",
+    "Digit3":  "\u064F",
+    "Digit7":  "\u064B",
+    "Digit8":  "\u064D",
+    "Digit9":  "\u064C",
+    "Digit0":  "\u0652",
     "Numpad1": "\u064E",
-    "Numpad2": "\u064F",
-    "Numpad3": "\u0650",
-    "Numpad4": "\u0651",
-    "Numpad5": "\u0652"
+    "Numpad2": "\u0650",
+    "Numpad3": "\u064F",
+    "Numpad7": "\u064B",
+    "Numpad8": "\u064D",
+    "Numpad9": "\u064C",
+    "Numpad0": "\u0652"
   }
 }
 ```
 
-Keys are matched against `event.code` (physical key, layout-independent).
-Values must be Unicode code points in the diacritic range `U+064B–U+0655, U+0670`.
-Restart the Flask server after editing `keymap.json`.
+The above is the default layout shipped with the app. Keys are matched against
+`event.code` (physical key, layout-independent). Values must be Unicode code
+points in the diacritic range `U+064B–U+0655, U+0670`. Restart the Flask
+server after editing `keymap.json`.
+
+**Default diacritic layout:**
+
+| Key | Diacritic |
+|-----|-----------|
+| `1` / `Numpad 1` | Fatha (U+064E) |
+| `2` / `Numpad 2` | Kasra (U+0650) |
+| `3` / `Numpad 3` | Damma (U+064F) |
+| `7` / `Numpad 7` | Tanween Fatha (U+064B) |
+| `8` / `Numpad 8` | Tanween Kasra (U+064D) |
+| `9` / `Numpad 9` | Tanween Dhamma (U+064C) |
+| `0` / `Numpad 0` | Sukoon (U+0652) |
+
+**Note:** `Shift+0` and `Shift+Numpad0` are hardcoded to Shadda (U+0651) in
+the application and cannot be remapped via `keymap.json`. Keys 4, 5, and 6
+are intentionally unbound (reserved for a future Phase 2 compound-key
+feature). Pressing them in Character Mode has no effect.
 
 ---
 

@@ -14,7 +14,7 @@
  * Exports on window:
  *   window.enterCharacterMode()
  *   window.exitCharacterMode()
- *   window.handleCharacterMode(key, code)
+ *   window.handleCharacterMode(key, code, shiftKey)
  *   window.CHAR_PANEL_HEIGHT  (px integer — read by Zen Focus calc)
  */
 
@@ -24,6 +24,10 @@
 // ---------------------------------------------------------------------------
 const CHAR_PANEL_HEIGHT = 180; // px
 window.CHAR_PANEL_HEIGHT = CHAR_PANEL_HEIGHT;
+
+// Language warning state — timer ID and DOM element reference.
+let _langWarningTimer = null;
+let _langWarningEl = null;
 
 // Punctuation regex — mirrors renderer.js; used when rebuilding word spans.
 const _PUNCT_RE = /^[\p{P}\p{S}]+$/u;
@@ -84,6 +88,10 @@ window.exitCharacterMode = function exitCharacterMode() {
   const panel = document.getElementById("char-panel");
   panel.style.display = "none";
   panel.innerHTML = "";
+
+  // Dismiss language warning immediately on exit — don't leave it dangling.
+  clearTimeout(_langWarningTimer);
+  if (_langWarningEl) _langWarningEl.style.display = "none";
 
   // Restore line opacity and word highlight.
   _applyCharModeLineStyle(false);
@@ -167,6 +175,34 @@ function _updateCharStatusBar() {
 }
 
 /**
+ * Flash the char panel and show a 2-second non-blocking "Switch keyboard to Arabic" message.
+ * Reuses flashBlockedTile() for the flash (report §8.2 — no new visual pattern).
+ * DOM element is created once on first call and appended adjacent to the char panel.
+ */
+function _triggerLanguageWarning() {
+  window.flashBlockedTile();
+
+  if (!_langWarningEl) {
+    _langWarningEl = document.createElement("div");
+    _langWarningEl.id = "lang-warning-msg";
+    _langWarningEl.style.cssText =
+      "position:fixed;bottom:" +
+      (CHAR_PANEL_HEIGHT + 8) +
+      "px;left:50%;" +
+      "transform:translateX(-50%);background:#f59e0b;color:#000;" +
+      "padding:6px 16px;border-radius:4px;font-size:14px;z-index:9999;pointer-events:none;";
+    _langWarningEl.textContent = "Switch keyboard to Arabic";
+    document.body.appendChild(_langWarningEl);
+  }
+
+  _langWarningEl.style.display = "block";
+  clearTimeout(_langWarningTimer);
+  _langWarningTimer = setTimeout(() => {
+    if (_langWarningEl) _langWarningEl.style.display = "none";
+  }, 2000);
+}
+
+/**
  * Apply or remove Character Mode visual treatment on the active line.
  * When entering: the line text dims to zen-far so the char panel is the focus.
  * When exiting: zen classes are restored by updateZenFocus().
@@ -205,21 +241,42 @@ function _applyCharModeLineStyle(entering) {
  *   Delete/Backspace → clearDiacritics on current cluster
  *   Diacritic key (raw or keymap-mapped) → applyDiacritic on current cluster
  *
- * @param {string} key  — event.key
- * @param {string} code — event.code (for keymap lookup)
+ * @param {string}  key      — event.key
+ * @param {string}  code     — event.code (for keymap lookup)
+ * @param {boolean} shiftKey — event.shiftKey (for Shift+0 / Shift+Numpad0 → Shadda)
  */
-window.handleCharacterMode = function handleCharacterMode(key, code) {
+
+window.handleCharacterMode = function handleCharacterMode(
+  key,
+  code,
+  shiftKey = false,
+) {
   const state = window.editorState;
   const word = state.lines[state.lineIdx]?.words[state.wordIdx];
   if (!word) return;
 
   const clusters = word.clusters;
 
+  // ---- Space: exit Character Mode and jump to next undiacritized word ----
+  // Equivalent to pressing Escape then Tab from Word Mode.
+  // No diacritic is written; no API call is made.
+  if (key === " ") {
+    window.exitCharacterMode();
+    if (window._tabJumpToNextUndiac()) {
+      window.updateZenFocus();
+      window.updateStatusBar();
+      window.scheduleCursorSave();
+    }
+    return;
+  }
+
   // ---- Escape: exit to Word Mode, keep word position (spec §5.2) ----
   if (key === "Escape") {
     window.exitCharacterMode();
     return;
   }
+
+  // ... (keep the rest of the function starting from ArrowLeft exactly as it is)
 
   // ---- ArrowLeft: next character in RTL reading order ----
   //      In RTL, ← advances toward the start of the word (clusters[0] is rightmost).
@@ -275,14 +332,68 @@ window.handleCharacterMode = function handleCharacterMode(key, code) {
     diacriticCp = window.KEYMAP[code];
   }
 
+  // Shift+0 and Shift+Numpad0 → Shadda (U+0651).
+  // Overrides the Sukoon result from keymap.json when Shift is held.
+  // shiftKey is threaded from handleEditorKeystroke (Task 1.1).
+  // Note: On Windows with NumLock ON, Shift+Numpad0 reports shiftKey=false and key='Insert'.
+  if (
+    (shiftKey && (code === "Digit0" || code === "Numpad0")) ||
+    (code === "Numpad0" && key === "Insert")
+  ) {
+    diacriticCp = "\u0651"; // Shadda
+  }
+
   if (diacriticCp) {
     _handleDiacriticKey(diacriticCp);
+  } else if (key.length === 1) {
+    // key.length === 1 means printable character (any language).
+    // Named keys (Escape, ArrowLeft, Delete, etc.) have key.length > 1.
+    // Space (' ') has key.length === 1 but is handled by early return above — safe.
+    _triggerLanguageWarning();
   }
 };
 
 // ---------------------------------------------------------------------------
 // Diacritic mutation + API write-through
 // ---------------------------------------------------------------------------
+
+/**
+ * Advance the cursor after a phonologically complete cluster (smart flow).
+ *
+ * If there is a next character in the word: moves charIdx forward and
+ * re-renders the panel at the new position.
+ *
+ * If the completed cluster was the last in the word: exits Character Mode
+ * and jumps to the next undiacritized word — identical to the Space key
+ * behaviour from Character Mode.
+ *
+ * Called ONLY from _handleDiacriticKey after a successful write when
+ * window.isClusterComplete(newCluster) returns true. Must never be called
+ * from any other site (RULES.md §3.9: _renderCharPanel is the sole
+ * checkSoftRulesAfterWrite call site — this function calls _renderCharPanel
+ * via the normal path, preserving that invariant).
+ */
+function _smartFlowAdvance() {
+  const state = window.editorState;
+  const word = state.lines[state.lineIdx]?.words[state.wordIdx];
+  if (!word) return;
+
+  const nextIdx = state.charIdx + 1;
+  if (nextIdx >= word.clusters.length) {
+    // Last character in word — exit and jump to next undiacritized word.
+    window.exitCharacterMode();
+    if (window._tabJumpToNextUndiac()) {
+      window.updateZenFocus();
+      window.updateStatusBar();
+      window.scheduleCursorSave();
+    }
+  } else {
+    // Advance to next character and re-render panel there.
+    state.charIdx = nextIdx;
+    _renderCharPanel();
+    _updateCharStatusBar();
+  }
+}
 
 /**
  * Apply a diacritic to the current cluster and write to disk.
@@ -331,12 +442,22 @@ async function _handleDiacriticKey(incoming) {
 
   // Reflect the change in the word span in the document pane
   _updateWordSpanText(state.lineIdx, state.wordIdx, word.clusters);
-  _renderCharPanel();
 
   // Fix 1 (Bug Report §Task 4.1): Re-classify the affected word so amber
   // highlights clear immediately and totalUndiacCount stays accurate.
   // Must come AFTER _updateWordSpanText() so .letter-cluster spans exist.
   window.reclassifyWord(state.lineIdx, state.wordIdx);
+
+  // Phase 2 Smart flow: if the cluster is now phonologically complete,
+  // auto-advance to the next character (or exit + jump at word boundary).
+  // _smartFlowAdvance() renders the panel at the new position.
+  // Otherwise render at the current position. Exactly one _renderCharPanel()
+  // fires per keystroke on either path.
+  if (window.isClusterComplete(newCluster)) {
+    _smartFlowAdvance();
+  } else {
+    _renderCharPanel();
+  }
 }
 
 /**

@@ -64,8 +64,9 @@ document.addEventListener("keydown", (event) => {
   if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA")
     return;
 
-  if (event.key === "?") {
-    // '?' is Shift+/ on most keyboards; preventDefault stops any browser action.
+  if (event.key === "?" || event.key === "\u061F") {
+    // '?' is Shift+/ on Latin keyboards; U+061F (؟) is its Arabic-layout
+    // equivalent on the same physical key. Both toggle the overlay.
     event.preventDefault();
     window.toggleShortcutsOverlay();
   }

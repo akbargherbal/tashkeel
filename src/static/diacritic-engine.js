@@ -252,3 +252,27 @@ window.flashBlockedTile = function flashBlockedTile() {
     panel.classList.add('flash-blocked');
     setTimeout(() => panel.classList.remove('flash-blocked'), 220);
 };
+
+/**
+ * Return true if the grapheme cluster is phonologically complete — i.e.,
+ * it carries at least one Group A mark (vowel or sukoon).
+ *
+ * Completeness rules (spec §Smart-flow):
+ *   Has a short vowel (no shadda)        → complete
+ *   Has tanween (no shadda)              → complete
+ *   Has sukoon                           → complete
+ *   Has shadda only                      → NOT complete (awaits vowel)
+ *   Has shadda + vowel or tanween        → complete
+ *   Bare (no marks at all)               → NOT complete
+ *   Has only Group C marks               → NOT complete
+ *
+ * Used by character-mode.js _handleDiacriticKey to determine whether
+ * to trigger smart-flow auto-advance after a successful write.
+ *
+ * @param {string} cluster — grapheme cluster string
+ * @returns {boolean}
+ */
+window.isClusterComplete = function isClusterComplete(cluster) {
+    const { marks } = window.parseCluster(cluster);
+    return [...marks].some(m => GROUP_A.has(m));
+};
