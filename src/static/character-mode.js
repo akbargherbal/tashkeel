@@ -358,6 +358,44 @@ window.handleCharacterMode = function handleCharacterMode(
 // ---------------------------------------------------------------------------
 
 /**
+ * Advance the cursor after a phonologically complete cluster (smart flow).
+ *
+ * If there is a next character in the word: moves charIdx forward and
+ * re-renders the panel at the new position.
+ *
+ * If the completed cluster was the last in the word: exits Character Mode
+ * and jumps to the next undiacritized word — identical to the Space key
+ * behaviour from Character Mode.
+ *
+ * Called ONLY from _handleDiacriticKey after a successful write when
+ * window.isClusterComplete(newCluster) returns true. Must never be called
+ * from any other site (RULES.md §3.9: _renderCharPanel is the sole
+ * checkSoftRulesAfterWrite call site — this function calls _renderCharPanel
+ * via the normal path, preserving that invariant).
+ */
+function _smartFlowAdvance() {
+  const state = window.editorState;
+  const word = state.lines[state.lineIdx]?.words[state.wordIdx];
+  if (!word) return;
+
+  const nextIdx = state.charIdx + 1;
+  if (nextIdx >= word.clusters.length) {
+    // Last character in word — exit and jump to next undiacritized word.
+    window.exitCharacterMode();
+    if (window._tabJumpToNextUndiac()) {
+      window.updateZenFocus();
+      window.updateStatusBar();
+      window.scheduleCursorSave();
+    }
+  } else {
+    // Advance to next character and re-render panel there.
+    state.charIdx = nextIdx;
+    _renderCharPanel();
+    _updateCharStatusBar();
+  }
+}
+
+/**
  * Apply a diacritic to the current cluster and write to disk.
  * Per-keystroke write-through (Plan locked decision: "per-keystroke").
  *
@@ -404,12 +442,22 @@ async function _handleDiacriticKey(incoming) {
 
   // Reflect the change in the word span in the document pane
   _updateWordSpanText(state.lineIdx, state.wordIdx, word.clusters);
-  _renderCharPanel();
 
   // Fix 1 (Bug Report §Task 4.1): Re-classify the affected word so amber
   // highlights clear immediately and totalUndiacCount stays accurate.
   // Must come AFTER _updateWordSpanText() so .letter-cluster spans exist.
   window.reclassifyWord(state.lineIdx, state.wordIdx);
+
+  // Phase 2 Smart flow: if the cluster is now phonologically complete,
+  // auto-advance to the next character (or exit + jump at word boundary).
+  // _smartFlowAdvance() renders the panel at the new position.
+  // Otherwise render at the current position. Exactly one _renderCharPanel()
+  // fires per keystroke on either path.
+  if (window.isClusterComplete(newCluster)) {
+    _smartFlowAdvance();
+  } else {
+    _renderCharPanel();
+  }
 }
 
 /**

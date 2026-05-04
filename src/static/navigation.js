@@ -159,6 +159,14 @@ window.handleWordMode = function (key) {
     updateStatusBar();
     scheduleCursorSave();
   }
+
+  // Phase 2 Full flow: Space in Word Mode jumps AND enters Character Mode.
+  // enterCharacterMode() fires AFTER updateZenFocus() so that
+  // _applyCharModeLineStyle() (which dims the line and removes zen-active)
+  // runs last and wins over the zen class assignments from updateZenFocus().
+  if (key === " " && moved && typeof window.enterCharacterMode === "function") {
+    window.enterCharacterMode();
+  }
 };
 
 /**
