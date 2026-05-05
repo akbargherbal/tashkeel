@@ -1,0 +1,1 @@
+This is session [X]. Go through the session handover (Session [X]) from the last session; then carefully read the phased plan along with other docs in the attachments. Explicitly ask for any file that is explicitly or implicitly referenced but missing and that you need to complete the coding tasks (Zero-Assumption Protocol (ZAP)).

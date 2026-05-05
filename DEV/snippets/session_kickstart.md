@@ -1,0 +1,2 @@
+This is session [X]. Carefully read RULES.md, then the last session handover (Session [X]), and wait for further instructions. Throughout the session, explicitly ask for any file that is explicitly or implicitly referenced but missing (was not given to you during the session) and that you need to complete the coding tasks (Zero-Assumption Protocol (ZAP)).
+Please make a thorough check of all the files (if any) in the attachments and list what you have.

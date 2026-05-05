@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arabic Proofreader</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* ── Base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0c0e14; }
+
+    /* ── Layout ───────────────────────────────────────────── */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #toolbar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 8px 16px;
+      font-size: 14px;
+      min-height: 48px;
+      z-index: 10;
+    }
+    #main-area {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ──────────────────────────────────────────── */
+    #sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: #1e293b;
+      color: #cbd5e1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-right: 1px solid #334155;
+    }
+    #sidebar-tree {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+      font-size: 14px;
+    }
+    .tree-folder {
+      padding: 4px 10px 2px;
+      font-weight: 600;
+      color: #94a3b8;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .tree-file {
+      padding: 5px 10px 5px 24px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 4px;
+      margin: 1px 6px;
+      transition: background 0.1s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tree-file:hover { background: #334155; }
+    .tree-file.active { background: #3b82f6; color: #fff; }
+    .tree-file .status-icon { flex-shrink: 0; font-size: 13px; width: 16px; text-align: center; }
+
+    /* Status colors per spec §7.1 */
+    .status-untouched   { color: #94a3b8; }
+    .status-in_progress { color: #3b82f6; }
+    .status-complete    { color: #22c55e; }
+
+    #sidebar-footer {
+      padding: 10px;
+      border-top: 1px solid #334155;
+    }
+
+    /* Sidebar legend §7.1 */
+    #sidebar-legend {
+      border-top: 1px solid #334155;
+      padding: 8px 10px 10px;
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.9;
+    }
+    #sidebar-legend .status-icon {
+      display: inline-block;
+      width: 16px;
+      text-align: center;
+      font-size: 12px;
+    }
+
+    /* ── Document pane ────────────────────────────────────── */
+    #doc-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #0c0e14;
+      overflow: hidden;
+      outline: none;
+      position: relative;
+    }
+    #doc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      border-bottom: 1px solid #1a2130;
+      flex-shrink: 0;
+      background: #0c0e14;
+      z-index: 10;
+    }
+    #doc-title {
+      font-size: 12px;
+      font-weight: 400;
+      color: #475569;
+      font-family: monospace;
+      letter-spacing: 0.03em;
+    }
+
+    /* ── Zen Focus: Document body ─────────────────────────── */
+    #doc-body {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+      --vignette-color: #0c0e14;
+    }
+    #doc-body::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 30%;
+      background: linear-gradient(to bottom, var(--vignette-color) 0%, transparent 100%);
+      pointer-events: none;
+      z-index: 2;
+    }
+    #doc-body::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 30%;
+      background: linear-gradient(to top, var(--vignette-color) 0%, transparent 100%);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    /* ── Zen Focus: Track ─────────────────────────────────── */
+    #zen-track {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      direction: rtl;
+      text-align: center;
+      font-family: 'Amiri', serif;
+    }
+
+    /* ── Zen Focus: Line states ───────────────────────────── */
+    .line-block {
+      display: block;
+      padding: 6px 48px;
+      line-height: 1.65;
+    }
+    .line-block.empty-line { display: none; }
+    .line-block.zen-active  { font-size: 48px; opacity: 1;    color: #f1f5f9; line-height: 1.65; }
+    .line-block.zen-context { font-size: 24px; opacity: 0.45; color: #cbd5e1; line-height: 1.75; }
+    .line-block.zen-far     { font-size: 24px; opacity: 0.12; color: #94a3b8; line-height: 1.75; }
+
+    /* ── Word spans ───────────────────────────────────────── */
+    .word-span {
+      display: inline;
+      border-radius: 3px;
+      padding: 0 2px;
+      cursor: default;
+      transition: background 0.06s;
+    }
+    .word-span.cursor {
+      background: rgba(250, 204, 21, 0.32);
+      outline: 1px solid rgba(250, 204, 21, 0.65);
+    }
+    .word-span.flagged {
+      background: rgba(239, 68, 68, 0.4);
+      font-weight: 600;
+    }
+    .word-span.cursor.flagged {
+      background: rgba(249, 115, 22, 0.45);
+      outline: 1px solid rgba(249, 115, 22, 0.65);
+    }
+
+    /* ── Status bar ───────────────────────────────────────── */
+    #doc-status-bar {
+      flex-shrink: 0;
+      padding: 6px 20px;
+      border-top: 1px solid #1a2130;
+      font-size: 12px;
+      color: #475569;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: #0c0e14;
+      font-family: monospace;
+    }
+
+    /* ── Complete banner ──────────────────────────────────── */
+    #complete-banner {
+      background: rgba(5, 46, 22, 0.85);
+      border: none;
+      border-bottom: 1px solid #14532d;
+      color: #4ade80;
+      padding: 10px 20px;
+      font-size: 14px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ── Empty / error state ──────────────────────────────── */
+    #doc-empty {
+      display: none;
+      position: absolute;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      color: #334155;
+      font-size: 15px;
+      font-family: system-ui, sans-serif;
+      background: #0c0e14;
+      z-index: 5;
+    }
+
+    /* ── Toast ────────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.25s, transform 0.25s;
+      pointer-events: none;
+      z-index: 9999;
+      white-space: nowrap;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ── Modals ───────────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #fff;
+      border-radius: 10px;
+      padding: 28px 32px;
+      max-width: 440px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+    .modal-box h3 { font-size: 17px; font-weight: 700; color: #1e293b; margin: 0 0 12px; }
+    .modal-box p  { font-size: 14px; color: #475569; margin: 0 0 20px; line-height: 1.55; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+    /* blocking error modal body uses pre-wrap for \n in error strings */
+    #blocking-error-body {
+      font-size: 14px;
+      color: #475569;
+      margin: 0 0 20px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+    }
+
+    /* ── Folder input panel ───────────────────────────────── */
+    #folder-panel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #folder-panel.open { display: flex; }
+    #folder-box {
+      background: #fff;
+      border-radius: 10px;
+      padding: 28px 32px;
+      max-width: 520px;
+      width: 92%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    }
+    #folder-box h3 { font-size: 17px; font-weight: 700; color: #1e293b; margin: 0 0 8px; }
+    #folder-box p  { font-size: 14px; color: #64748b; margin: 0 0 14px; }
+    #folder-input {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 14px;
+      color: #1e293b;
+      margin-bottom: 14px;
+    }
+    #folder-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }
+    #folder-error { color: #dc2626; font-size: 13px; margin-bottom: 10px; display: none; }
+
+    /* ── Help modal content ───────────────────────────────── */
+    #help-content {
+      font-size: 14px;
+      color: #334155;
+      line-height: 1.7;
+    }
+    #help-content table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    #help-content td { padding: 3px 8px; }
+    #help-content td:first-child { font-weight: 700; white-space: nowrap; color: #1e293b; }
+    #help-content .section-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #94a3b8;
+      margin: 14px 0 4px;
+      border-bottom: 1px solid #e5e7eb;
+      padding-bottom: 4px;
+    }
+
+    /* ── Buttons ──────────────────────────────────────────── */
+    .btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s;
+    }
+    .btn-primary { background: #3b82f6; color: #fff; }
+    .btn-primary:hover { background: #2563eb; }
+    .btn-danger  { background: #ef4444; color: #fff; }
+    .btn-danger:hover  { background: #dc2626; }
+    .btn-ghost   { background: transparent; color: #cbd5e1; border: 1px solid #475569; }
+    .btn-ghost:hover   { background: #334155; }
+    .btn-outline { background: transparent; color: #475569; border: 1px solid #d1d5db; }
+    .btn-outline:hover { background: #f1f5f9; }
+    .btn-success { background: #22c55e; color: #fff; }
+    .btn-success:hover { background: #16a34a; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Responsive collapse ──────────────────────────────── */
+    #sidebar-toggle { display: none; }
+    @media (max-width: 768px) {
+      #sidebar {
+        position: fixed;
+        top: 48px; bottom: 0; left: 0;
+        z-index: 50;
+        transform: translateX(-100%);
+        transition: transform 0.2s;
+        width: 260px;
+      }
+      #sidebar.open { transform: translateX(0); }
+      #sidebar-toggle { display: flex; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── TOOLBAR ────────────────────────────────────────── -->
+  <div id="toolbar">
+    <button id="sidebar-toggle" class="btn btn-ghost" style="padding:4px 10px;" onclick="toggleSidebar()">☰</button>
+    <button class="btn btn-ghost" onclick="openFolderPanel()">📂 Open Folder</button>
+    <span id="toolbar-path" style="color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; font-size:13px;"></span>
+    <button class="btn btn-ghost" onclick="openHelp()">Help</button>
+  </div>
+
+  <!-- ── MAIN AREA ──────────────────────────────────────── -->
+  <div id="main-area">
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+      <div id="sidebar-tree">
+        <div style="padding:12px 10px; color:#64748b; font-size:13px;">No project loaded.</div>
+      </div>
+
+      <!-- Legend above the reset button §7.1 -->
+      <div id="sidebar-legend">
+        <span class="status-icon status-untouched">○</span> Untouched<br>
+        <span class="status-icon status-in_progress">●</span> In progress<br>
+        <span class="status-icon status-complete">✓</span> Complete
+      </div>
+
+      <div id="sidebar-footer">
+        <button id="reset-btn" class="btn btn-danger" style="width:100%;" disabled onclick="confirmReset()">Reset Doc</button>
+      </div>
+    </div>
+
+    <!-- Document Pane -->
+    <div id="doc-pane" tabindex="0">
+      <!-- Complete banner — shown when fileStatus === "complete" -->
+      <div id="complete-banner">
+        ✓ This document is complete. Reset to re-review.
+        <button id="download-annotated-btn" class="btn btn-outline" style="margin-left:auto;" onclick="downloadAnnotatedCopy()">Download Annotated Copy</button>
+      </div>
+      <div id="doc-header">
+        <span id="doc-title">No document open</span>
+        <button id="mark-complete-btn" class="btn btn-success" style="display:none;" onclick="confirmMarkComplete()">Mark Complete</button>
+      </div>
+
+      <div id="doc-body">
+        <!-- #zen-track is injected here by app.js on file load -->
+      </div>
+      <div id="doc-empty">Open a project folder and select a file.</div>
+
+      <div id="doc-status-bar">
+        <span id="status-pos">—</span>
+        <span id="status-flagged">—</span>
+        <span id="save-status" style="margin-left:auto;"></span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── FOLDER PANEL ────────────────────────────────── -->
+<div id="folder-panel">
+  <div id="folder-box">
+    <h3>📂 Open Project Folder</h3>
+    <p>Paste or type the absolute path to your project folder:</p>
+    <div style="display:flex; gap:8px; margin-bottom:14px;">
+      <input id="folder-input" type="text" placeholder="/path/to/your/project" spellcheck="false" style="margin-bottom:0; flex:1;" />
+      <button class="btn btn-outline" id="browse-btn" onclick="browseFolder()" title="Open folder picker">Browse…</button>
+    </div>
+    <div id="folder-error"></div>
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn btn-outline" onclick="closeFolderPanel()">Cancel</button>
+      <button class="btn btn-primary" onclick="loadFolder()">Load</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CONFIRM MODAL ──────────────────────────────── -->
+<div id="confirm-modal" class="modal-overlay">
+  <div class="modal-box">
+    <h3 id="confirm-title">Confirm</h3>
+    <p id="confirm-body"></p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeConfirm()">Cancel</button>
+      <button id="confirm-action-btn" class="btn btn-primary">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── BLOCKING ERROR MODAL ─────────────────────────── -->
+<div id="blocking-error-modal" class="modal-overlay">
+  <div class="modal-box">
+    <h3>⚠ Error</h3>
+    <p id="blocking-error-body"></p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="closeBlockingError()">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── HELP MODAL ─────────────────────────────────────── -->
+<div id="help-modal" class="modal-overlay">
+  <div class="modal-box">
+    <h3>Keyboard Shortcuts</h3>
+    <div id="help-content">
+      <table>
+        <tr><td>← Left Arrow</td><td>Next word (reading direction)</td></tr>
+        <tr><td>→ Right Arrow</td><td>Previous word</td></tr>
+        <tr><td>↓ Down Arrow</td><td>Next line (same word position)</td></tr>
+        <tr><td>↑ Up Arrow</td><td>Previous line (same word position)</td></tr>
+        <tr><td>Space</td><td>Toggle flag on current word</td></tr>
+      </table>
+      <div class="section-label">Mouse Only (intentional — no shortcuts)</div>
+      <table>
+        <tr><td>Mark Complete</td><td>Button in document header</td></tr>
+        <tr><td>Reset Document</td><td>Button in sidebar</td></tr>
+        <tr><td>Open Folder</td><td>Button in toolbar</td></tr>
+      </table>
+    </div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="btn btn-primary" onclick="closeHelp()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ──────────────────────────────────────────── -->
+<div id="toast"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
