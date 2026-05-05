@@ -391,6 +391,7 @@ function _smartFlowAdvance() {
     window.exitCharacterMode();
     if (window._tabJumpToNextUndiac()) {
       window.updateZenFocus();
+      window.enterCharacterMode();  // Full-Flow Auto-Continue (Session 29)
       window.updateStatusBar();
       window.scheduleCursorSave();
     }
