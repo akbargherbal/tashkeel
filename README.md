@@ -78,7 +78,7 @@ TASHKEEL_ROOT=/home/you/manuscripts python app.py
 | `←` Left Arrow | Next character (RTL); auto-exits at word boundary |
 | `→` Right Arrow | Previous character; auto-exits at word boundary |
 | `Escape` | Exit to Word Mode |
-| Diacritic key | Apply / replace diacritic on current character; auto-advances to next character when cluster is complete |
+| Diacritic key | Apply / replace diacritic on current character; auto-advances to next character when cluster is complete. At a word boundary, automatically opens Character Mode on the next undiacritized word — no `Enter` press required (Full-Flow Auto-Continue) |
 | Same diacritic key again | Toggle off (remove) diacritic |
 | `Delete` / `Backspace` | Clear all diacritics from current character |
 | `Space` | Exit Character Mode + jump to next undiacritized word |
