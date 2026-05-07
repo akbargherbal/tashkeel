@@ -259,3 +259,5 @@ function _tabJumpToPrevUndiac() {
 
   return false;
 }
+
+window._tabJumpToPrevUndiac = _tabJumpToPrevUndiac;
